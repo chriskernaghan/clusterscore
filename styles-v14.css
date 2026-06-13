@@ -2020,15 +2020,15 @@ html, body {
 }
 .progress-miner {
   position: relative;
-  width: calc(var(--miner-px) * 16);
-  height: calc(var(--miner-px) * 16);
+  --px: 6px;
+  width: calc(var(--px) * 16);
+  height: calc(var(--px) * 16);
   margin: 0 auto 18px;
   image-rendering: pixelated;
-  --miner-px: 6px;
 }
 .progress-miner span {
   position: absolute; top: 0; left: 0;
-  width: var(--miner-px); height: var(--miner-px);
+  width: var(--px); height: var(--px);
 }
 .progress-miner .mf1 { box-shadow: calc(var(--px)*4) calc(var(--px)*1) #443fde,
     calc(var(--px)*5) calc(var(--px)*1) #443fde,
