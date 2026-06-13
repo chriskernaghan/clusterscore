@@ -15,7 +15,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Barlow:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500;1,600&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles-v14.css">
 </head>
-<body> 
+<body>
 
 <!-- =================================================================
      LANDING PAGE  (shown only on first visit, before config)
@@ -496,8 +496,12 @@
 <div class="confirm-modal hidden" id="clusterSuggestModal" role="dialog" aria-labelledby="clusterSuggestTitle">
   <div class="confirm-modal-inner">
     <h2 id="clusterSuggestTitle">We found your topics</h2>
-    <p class="cs-suggest-lede">Based on your page URLs, here are the content clusters we can score. Pick the ones that match how you think about your site — you can edit these any time.</p>
-    <div class="cs-suggest-list" id="clusterSuggestList"></div>
+    <p class="cs-suggest-lede">Based on your page URLs, here are some content clusters we can score. Remove any that don't fit, and add your own — a cluster is just a topic keyword that appears in your post slugs or titles. You can change these any time.</p>
+    <div class="cs-suggest-chips" id="clusterSuggestChips"></div>
+    <div class="cs-suggest-add">
+      <input type="text" id="clusterSuggestInput" class="cs-suggest-input" placeholder="Add topics, comma-separated (e.g. pricing, onboarding, founders)" autocomplete="off" spellcheck="false">
+      <button type="button" class="btn btn-ghost btn-sm" id="clusterSuggestAdd">Add</button>
+    </div>
     <div class="confirm-actions">
       <button class="btn btn-ghost" id="clusterSuggestSkip">Skip for now</button>
       <button class="btn btn-primary" id="clusterSuggestConfirm">Use these clusters</button>
