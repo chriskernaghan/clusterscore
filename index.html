@@ -510,6 +510,18 @@
 </div>
 
 <!-- =================================================================
+     PROGRESS HISTORY MODAL ("since you started")
+     ================================================================= -->
+<div class="modal-backdrop hidden" id="historyBackdrop"></div>
+<div class="confirm-modal hidden" id="historyModal" role="dialog" aria-labelledby="historyTitle">
+  <div class="confirm-modal-inner">
+    <button class="confirm-close" id="historyCloseBtn" aria-label="Close">&times;</button>
+    <h2 id="historyTitle">Your progress</h2>
+    <div id="historyBody"></div>
+  </div>
+</div>
+
+<!-- =================================================================
      AUDIT PROGRESS OVERLAY
      Always-visible run feedback. The masthead button is hidden during the
      landing-page hero flow, so progress needs its own visible home.
