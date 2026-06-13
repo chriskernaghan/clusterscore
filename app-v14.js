@@ -1437,7 +1437,7 @@ async function runAudit() {
   const btn = document.getElementById('runAuditBtn');
   btn.classList.add('loading');
   btn.disabled = true;
-  btn.querySelector('.btn-label').textContent = 'Finding sitemap...';
+  showProgress('Finding your sitemap...');
 
   try {
     // Run platform-aware discovery
@@ -1455,6 +1455,8 @@ async function runAudit() {
     console.error(e);
     showDiscoveryFailure(e);
   } finally {
+    hideProgress();
+    hideProgress();
     btn.classList.remove('loading');
     btn.disabled = false;
     btn.querySelector('.btn-label').textContent = 'Run audit';
@@ -1522,6 +1524,43 @@ function closeFailModal() {
   document.getElementById('failBackdrop').classList.add('hidden');
 }
 
+// Progress overlay: a single visible place for run progress, independent of
+// which button started the audit (the masthead button is hidden during the
+// landing-page hero flow, so its label updates were invisible — this fixes that).
+function showProgress(msg) {
+  const ov = document.getElementById('progressOverlay');
+  if (ov) ov.classList.remove('hidden');
+  setProgress(msg || 'Starting...');
+}
+function setProgress(msg) {
+  const txt = document.getElementById('progressText');
+  if (txt) txt.textContent = msg;
+  // Keep updating the button label too, for the post-audit (masthead-visible) flow
+  const btn = document.getElementById('runAuditBtn');
+  const label = btn && btn.querySelector('.btn-label');
+  if (label) label.textContent = msg;
+  // If the message carries an "X of Y" count, drive the bar
+  const m = /(\d+)\s+of\s+(\d+)/.exec(msg || '');
+  const bar = document.getElementById('progressBar');
+  if (bar) {
+    if (m) {
+      const pct = Math.max(0, Math.min(100, (parseInt(m[1], 10) / parseInt(m[2], 10)) * 100));
+      bar.style.width = pct.toFixed(1) + '%';
+      bar.classList.remove('indeterminate');
+    } else {
+      // No count yet (discovery, sitemap parse, building) — show indeterminate motion
+      bar.classList.add('indeterminate');
+      bar.style.width = '40%';
+    }
+  }
+}
+function hideProgress() {
+  const ov = document.getElementById('progressOverlay');
+  if (ov) ov.classList.add('hidden');
+  const bar = document.getElementById('progressBar');
+  if (bar) { bar.style.width = '0%'; bar.classList.remove('indeterminate'); }
+}
+
 // The actual audit runner — same as before but pulled out so the confirm flow can call it
 async function actualRunAudit() {
   const cfg = state.config;
@@ -1545,6 +1584,7 @@ async function actualRunAudit() {
   btn.classList.add('loading');
   btn.disabled = true;
   track('audit_run');
+  showProgress('Fetching your site...');
 
   try {
     let posts, derivedSiteUrl, sitemapUrlForConfig;
@@ -1553,7 +1593,7 @@ async function actualRunAudit() {
       posts = await fetchAllPosts(
         cfg.ghostUrl,
         cfg.apiKey,
-        msg => { btn.querySelector('.btn-label').textContent = msg; }
+        msg => setProgress(msg)
       );
       derivedSiteUrl = cfg.ghostUrl;
     } else {
@@ -1568,7 +1608,7 @@ async function actualRunAudit() {
 
       posts = await fetchAllFromSitemap(
         sitemapConfig,
-        msg => { btn.querySelector('.btn-label').textContent = msg; }
+        msg => setProgress(msg)
       );
       derivedSiteUrl = (() => {
         if (posts.length) {
@@ -1583,7 +1623,7 @@ async function actualRunAudit() {
       throw new Error('No posts/pages were fetched. Check your settings.');
     }
 
-    btn.querySelector('.btn-label').textContent = 'Building report...';
+    setProgress('Building report...');
     const previous = state.snapshots[0] || null;
     const previousSnapshot = previous ? { posts: previous.posts_summary || [] } : null;
     const audit = runAuditBuild(derivedSiteUrl, posts, previousSnapshot);
@@ -1618,6 +1658,7 @@ async function actualRunAudit() {
     console.error(e);
     toast('Audit failed: ' + e.message, 'error');
   } finally {
+    hideProgress();
     btn.classList.remove('loading');
     btn.disabled = false;
     btn.querySelector('.btn-label').textContent = 'Run audit';
