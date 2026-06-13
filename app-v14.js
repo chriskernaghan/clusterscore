@@ -1,6 +1,6 @@
 /* ========================================================================
    Clusterscore — client-side app logic
-   Internal link audits for any CMS, all in the browser
+   Internal link audits for any CMS, all in the browser.
    ======================================================================== */
 
 // Hardcoded proxy URL — users never see or configure this.
@@ -821,10 +821,10 @@ function renderClusters() {
     el.innerHTML = `
       <div class="empty-cluster-prompt">
         <div class="empty-cluster-prompt-body">
-          <h4>Want to score how tightly your topics interlink?</h4>
-          <p>Clusters group related pages so you can see which topics need internal linking work. Most users add 3–7 to start.</p>
+          <h4>One step left: add your topic clusters</h4>
+          <p>This is the heart of Clusterscore. A cluster is a topic — like "pricing" or "founders" — and we score how tightly the pages in it link to each other. It's the part most SEO tools miss. Takes about a minute, and the rest of your audit below is ready now either way.</p>
         </div>
-        <button type="button" class="btn btn-primary btn-sm" id="emptyClusterAddBtn">Define clusters</button>
+        <button type="button" class="btn btn-primary btn-sm" id="emptyClusterAddBtn">Add clusters</button>
       </div>
     `;
     document.getElementById('emptyClusterAddBtn')?.addEventListener('click', () => {
@@ -1562,11 +1562,22 @@ function suggestClustersFromPosts(posts, opts = {}) {
     if (special[token]) return special[token];
     return token.charAt(0).toUpperCase() + token.slice(1);
   };
-  return [...freq.entries()]
-    .filter(([, n]) => n >= minPosts)
+  // Adaptive threshold: editorial sites (unique-topic slugs) rarely repeat a
+  // token 3+ times, so strict frequency finds almost nothing. If the strict
+  // pass is thin, relax to 2 so the user still gets seeds to edit. The manual
+  // field is the real safety net, but starting from something beats blank.
+  const ranked = (threshold) => [...freq.entries()]
+    .filter(([, n]) => n >= threshold)
     .sort((a, b) => b[1] - a[1])
     .slice(0, cap)
     .map(([token, count]) => ({ name: prettify(token), keywords: [token], post_count: count }));
+
+  let out = ranked(minPosts);
+  if (out.length < 3) {
+    // Relax the threshold, but keep anything already found at the top
+    out = ranked(2);
+  }
+  return out;
 }
 
 // Shows the suggestion checklist and resolves with the chosen clusters
@@ -1576,38 +1587,88 @@ function promptClusterSuggestions(suggestions) {
   return new Promise(resolve => {
     const modal = document.getElementById('clusterSuggestModal');
     const backdrop = document.getElementById('clusterSuggestBackdrop');
-    const list = document.getElementById('clusterSuggestList');
+    const chipWrap = document.getElementById('clusterSuggestChips');
+    const input = document.getElementById('clusterSuggestInput');
+    const addBtn = document.getElementById('clusterSuggestAdd');
     const confirmBtn = document.getElementById('clusterSuggestConfirm');
     const skipBtn = document.getElementById('clusterSuggestSkip');
 
-    // Build checklist — all checked by default
-    list.innerHTML = suggestions.map((s, i) => `
-      <label class="cs-suggest-item">
-        <input type="checkbox" data-idx="${i}" checked>
-        <span class="cs-suggest-name">${escapeHtml(s.name)}</span>
-        <span class="cs-suggest-count">${s.post_count} posts</span>
-      </label>
-    `).join('');
+    // Live working set of clusters, seeded from suggestions. Each is {name, keywords}.
+    // We key by lowercased name to dedupe.
+    const chosen = new Map();
+    for (const s of suggestions) {
+      chosen.set(s.name.toLowerCase(), { name: s.name, keywords: s.keywords });
+    }
 
+    function renderChips() {
+      if (chosen.size === 0) {
+        chipWrap.innerHTML = '<span class="cs-chip-empty">No clusters yet. Add your own below, or skip and define them later.</span>';
+      } else {
+        chipWrap.innerHTML = [...chosen.values()].map(c => `
+          <span class="cs-chip" data-key="${escapeHtml(c.name.toLowerCase())}">
+            ${escapeHtml(c.name)}
+            <button type="button" class="cs-chip-x" aria-label="Remove ${escapeHtml(c.name)}">&times;</button>
+          </span>
+        `).join('');
+        chipWrap.querySelectorAll('.cs-chip-x').forEach(x => {
+          x.addEventListener('click', () => {
+            const key = x.closest('.cs-chip').dataset.key;
+            chosen.delete(key);
+            renderChips();
+          });
+        });
+      }
+      // Reflect count on the confirm button
+      confirmBtn.textContent = chosen.size
+        ? `Use ${chosen.size} cluster${chosen.size === 1 ? '' : 's'}`
+        : 'Skip for now';
+    }
+
+    // Add comma-separated names from the input as new chips.
+    // Each entry becomes a cluster whose keyword is the lowercased name.
+    function addFromInput() {
+      const raw = input.value.trim();
+      if (!raw) return;
+      for (const part of raw.split(',').map(s => s.trim()).filter(Boolean)) {
+        const key = part.toLowerCase();
+        if (!chosen.has(key)) {
+          chosen.set(key, { name: part, keywords: [key] });
+        }
+      }
+      input.value = '';
+      renderChips();
+      input.focus();
+    }
+
+    renderChips();
     modal.classList.remove('hidden');
     backdrop.classList.remove('hidden');
+    setTimeout(() => input?.focus(), 100);
 
+    const onAdd = () => addFromInput();
+    const onKey = (e) => {
+      // Enter or comma commits the current input
+      if (e.key === 'Enter') { e.preventDefault(); addFromInput(); }
+    };
     const cleanup = () => {
       modal.classList.add('hidden');
       backdrop.classList.add('hidden');
+      addBtn.removeEventListener('click', onAdd);
+      input.removeEventListener('keydown', onKey);
       confirmBtn.removeEventListener('click', onConfirm);
       skipBtn.removeEventListener('click', onSkip);
     };
     const onConfirm = () => {
-      const chosen = [];
-      list.querySelectorAll('input[type="checkbox"]:checked').forEach(cb => {
-        const s = suggestions[parseInt(cb.dataset.idx, 10)];
-        if (s) chosen.push({ name: s.name, keywords: s.keywords });
-      });
+      // Fold any uncommitted text in the input before resolving
+      addFromInput();
+      const result = [...chosen.values()].map(c => ({ name: c.name, keywords: c.keywords }));
       cleanup();
-      resolve(chosen);
+      resolve(result);
     };
     const onSkip = () => { cleanup(); resolve([]); };
+
+    addBtn.addEventListener('click', onAdd);
+    input.addEventListener('keydown', onKey);
     confirmBtn.addEventListener('click', onConfirm);
     skipBtn.addEventListener('click', onSkip);
   });
