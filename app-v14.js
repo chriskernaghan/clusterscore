@@ -1537,6 +1537,11 @@ const CLUSTER_STOPWORDS = new Set([
   'best','top','review','reviews','vs','your','you','our','my','this','that',
   'new','using','use','used','get','getting','make','making','it','from',
   'part','intro','introduction','tips','tutorial','about','into','out',
+  // Generic editorial filler — frequent on blog slugs but not real topics
+  'built','build','building','journey','business','story','stories','way','ways',
+  'thing','things','look','guide','complete','ultimate','essential','simple',
+  'easy','quick','need','know','should','can','will','why','really','actually',
+  'great','good','better','more','most','every','everything','anything',
 ]);
 
 function suggestClustersFromPosts(posts, opts = {}) {
@@ -1556,6 +1561,20 @@ function suggestClustersFromPosts(posts, opts = {}) {
       freq.set(t, (freq.get(t) || 0) + 1);
     }
   }
+
+  // Collapse singular/plural: if both "founder" and "founders" exist, merge the
+  // plural into the singular and sum their post counts, so we don't show both as
+  // separate clusters. Handles simple "+s" and "+es" plurals (the common cases).
+  for (const token of [...freq.keys()]) {
+    let singular = null;
+    if (token.endsWith('es') && freq.has(token.slice(0, -2))) singular = token.slice(0, -2);
+    else if (token.endsWith('s') && !token.endsWith('ss') && freq.has(token.slice(0, -1))) singular = token.slice(0, -1);
+    if (singular && singular !== token) {
+      freq.set(singular, freq.get(singular) + freq.get(token));
+      freq.delete(token);
+    }
+  }
+
   // Nicer display casing for a few known acronyms; otherwise capitalise first letter
   const prettify = (token) => {
     const special = { saas: 'SaaS', seo: 'SEO', api: 'API', ai: 'AI', ui: 'UI', ux: 'UX' };
