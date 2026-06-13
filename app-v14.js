@@ -786,10 +786,100 @@ function render() {
   }
 }
 
+// ---------- Progress history ("since you started") ----------
+// Builds a momentum summary by differencing the oldest retained snapshot against
+// the newest. Because snapshots are capped at MAX_SNAPSHOTS, "started" means the
+// oldest *tracked* audit, not necessarily the literal first — the copy reflects that.
+
+function computeProgressSummary(snapshots) {
+  if (!snapshots || snapshots.length < 2) return null;
+  const newest = snapshots[0].stats || {};
+  const oldest = snapshots[snapshots.length - 1].stats || {};
+  return {
+    auditCount: snapshots.length,
+    firstDate: snapshots[snapshots.length - 1].generated,
+    latestDate: snapshots[0].generated,
+    orphansFixed: (oldest.orphan_count || 0) - (newest.orphan_count || 0),
+    linksAdded: (newest.total_links || 0) - (oldest.total_links || 0),
+    underlinkedReduced: (oldest.underlinked_count || 0) - (newest.underlinked_count || 0),
+    avgInboundDelta: Math.round(((newest.avg_inbound || 0) - (oldest.avg_inbound || 0)) * 10) / 10,
+    postsDelta: (newest.post_count || 0) - (oldest.post_count || 0),
+    orphansThen: oldest.orphan_count || 0, orphansNow: newest.orphan_count || 0,
+    linksThen: oldest.total_links || 0, linksNow: newest.total_links || 0,
+  };
+}
+
+// Render one progress stat with direction-aware framing. `goodWhenPositive`
+// says whether a positive delta is an improvement (orphans fixed: yes;
+// orphans added: a positive delta would be bad).
+function progressStat(label, delta, goodWhenPositive, opts = {}) {
+  const v = delta || 0;
+  let cls = 'flat', sign = '';
+  if (v > 0) { cls = goodWhenPositive ? 'up' : 'down'; sign = '+'; }
+  else if (v < 0) { cls = goodWhenPositive ? 'down' : 'up'; }
+  const display = opts.decimal ? v.toFixed(1) : Math.abs(v).toLocaleString();
+  const shown = v < 0 ? '−' + display : (v > 0 ? sign + display : display);
+  return `
+    <div class="progress-stat">
+      <div class="progress-stat-value ${cls}">${shown}</div>
+      <div class="progress-stat-label">${escapeHtml(label)}</div>
+    </div>`;
+}
+
+function openHistoryModal() {
+  const summary = computeProgressSummary(state.snapshots);
+  const modal = document.getElementById('historyModal');
+  const backdrop = document.getElementById('historyBackdrop');
+  const body = document.getElementById('historyBody');
+  if (!modal || !body) return;
+
+  if (!summary) {
+    body.innerHTML = `
+      <p class="history-empty">Run at least two audits and your progress will show up here — net orphans fixed, internal links added, and more. Re-run after you've made some changes to see the difference.</p>`;
+  } else {
+    const first = new Date(summary.firstDate);
+    const dateStr = first.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+
+    // Headline sentence adapts to whether things improved overall
+    const improved = summary.orphansFixed > 0 || summary.linksAdded > 0;
+    const headline = improved
+      ? `Since your first tracked audit on ${dateStr}, your internal linking has moved in the right direction.`
+      : `Here's how things have changed since your first tracked audit on ${dateStr}.`;
+
+    body.innerHTML = `
+      <p class="history-lede">${headline}</p>
+      <div class="progress-grid">
+        ${progressStat('orphans fixed', summary.orphansFixed, true)}
+        ${progressStat('internal links added', summary.linksAdded, true)}
+        ${progressStat('under-linked pages cleared', summary.underlinkedReduced, true)}
+        ${progressStat('avg inbound change', summary.avgInboundDelta, true, { decimal: true })}
+      </div>
+      <div class="history-endpoints">
+        <span>Orphans: <strong>${summary.orphansThen}</strong> → <strong>${summary.orphansNow}</strong></span>
+        <span>Links: <strong>${summary.linksThen.toLocaleString()}</strong> → <strong>${summary.linksNow.toLocaleString()}</strong></span>
+        <span>${summary.auditCount} audits tracked</span>
+      </div>`;
+  }
+
+  modal.classList.remove('hidden');
+  backdrop.classList.remove('hidden');
+}
+
+function closeHistoryModal() {
+  document.getElementById('historyModal')?.classList.add('hidden');
+  document.getElementById('historyBackdrop')?.classList.add('hidden');
+}
+
 function renderRunMeta() {
   const el = document.getElementById('runMeta');
   const d = new Date(state.audit.generated);
-  el.textContent = `Last audit · ${d.toLocaleString()} · ${state.audit.stats.post_count} posts scanned`;
+  // Show a "view history" link only once there's more than one audit to compare
+  const canShowHistory = (state.snapshots?.length || 0) >= 2;
+  el.innerHTML = `Last audit · ${escapeHtml(d.toLocaleString())} · ${state.audit.stats.post_count} posts scanned` +
+    (canShowHistory ? ` · <button type="button" class="run-meta-link" id="viewHistoryBtn">view progress</button>` : '');
+  if (canShowHistory) {
+    document.getElementById('viewHistoryBtn')?.addEventListener('click', openHistoryModal);
+  }
 }
 
 function renderHeadlineStats() {
@@ -1341,11 +1431,16 @@ function renderClusterEditor() {
   el.innerHTML = '';
   state.clusters.forEach((c, idx) => {
     const row = document.createElement('div');
-    row.className = 'cluster-row';
+    row.className = 'cluster-chip-card';
     row.innerHTML = `
-      <input type="text" placeholder="Cluster name" data-field="name" value="${escapeHtml(c.name)}">
-      <input type="text" placeholder="keyword auto-fills from name" class="keywords" data-field="keywords" value="${escapeHtml(c.keywords.join(', '))}">
-      <button class="cluster-remove" type="button" aria-label="Remove">×</button>
+      <div class="cluster-chip-head">
+        <input type="text" class="cluster-chip-name" placeholder="Cluster name" data-field="name" value="${escapeHtml(c.name)}">
+        <button class="cluster-chip-remove" type="button" aria-label="Remove">&times;</button>
+      </div>
+      <div class="cluster-chip-kw-row">
+        <span class="cluster-chip-kw-label">matches:</span>
+        <input type="text" class="cluster-chip-kw" placeholder="keyword auto-fills from name" data-field="keywords" value="${escapeHtml(c.keywords.join(', '))}">
+      </div>
     `;
     const nameInput = row.querySelector('[data-field="name"]');
     const kwInput = row.querySelector('[data-field="keywords"]');
@@ -1368,7 +1463,7 @@ function renderClusterEditor() {
       state.clusters[idx].keywords = e.target.value.split(',').map(s => s.trim()).filter(Boolean);
     });
 
-    row.querySelector('.cluster-remove').addEventListener('click', () => {
+    row.querySelector('.cluster-chip-remove').addEventListener('click', () => {
       state.clusters.splice(idx, 1);
       renderClusterEditor();
     });
@@ -2088,6 +2183,10 @@ function init() {
       document.getElementById('sitemapUrlInput')?.focus();
     }, 150);
   });
+
+  // History / progress modal close handlers
+  document.getElementById('historyCloseBtn')?.addEventListener('click', closeHistoryModal);
+  document.getElementById('historyBackdrop')?.addEventListener('click', closeHistoryModal);
 
   document.getElementById('search').addEventListener('input', e => {
     state.search = e.target.value;
