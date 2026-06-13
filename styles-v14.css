@@ -2460,3 +2460,48 @@ html, body {
   padding-top: 4px;
 }
 .history-endpoints strong { color: var(--ink); font-weight: 600; }
+
+/* ---------- FAQ accordion (landing trust) ---------- */
+.faq-accordion {
+  border-top: var(--rule-soft);
+}
+.faq-accordion details {
+  border-bottom: var(--rule-soft);
+}
+.faq-accordion summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 16px 32px 16px 0;
+  position: relative;
+  font-size: 15px;
+  color: var(--ink);
+  user-select: none;
+  transition: color 120ms ease;
+}
+.faq-accordion summary::-webkit-details-marker { display: none; }
+.faq-accordion summary strong { font-weight: 600; }
+.faq-accordion summary:hover { color: var(--accent); }
+/* Custom chevron, right-aligned, rotates when open */
+.faq-accordion summary::after {
+  content: '';
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid var(--ink-3);
+  border-bottom: 2px solid var(--ink-3);
+  transform: translateY(-65%) rotate(45deg);
+  transition: transform 160ms ease;
+}
+.faq-accordion details[open] summary::after {
+  transform: translateY(-35%) rotate(225deg);
+}
+.faq-accordion details[open] summary { color: var(--accent); }
+.faq-accordion details p {
+  margin: 0;
+  padding: 0 32px 18px 0;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--ink-2);
+}
