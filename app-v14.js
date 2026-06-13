@@ -96,6 +96,7 @@ const state = {
   audit: null,
   sort: { key: 'inbound', dir: 'asc' },
   filter: 'all',
+  graphFocus: null,
   search: '',
   expanded: new Set(),
 };
@@ -591,6 +592,18 @@ function runAuditBuild(siteUrl, posts, previousSnapshot) {
   // Action queue: highest-leverage fixes
   const actions = buildActions(items, clusterResults);
 
+  // --- Graph data: which cluster each item belongs to (first match wins) ---
+  // Mirrors the keyword-match logic used for cluster density, so graph node
+  // colours line up with how the cluster panel scores them.
+  const itemCluster = {};
+  for (const item of items) {
+    const hay = (item.slug + ' ' + item.title).toLowerCase();
+    for (const c of state.clusters) {
+      const kws = c.keywords.map(k => k.toLowerCase()).filter(Boolean);
+      if (kws.some(k => hay.includes(k))) { itemCluster[item.id] = c.name; break; }
+    }
+  }
+
   return {
     generated: new Date().toISOString(),
     site_url: siteUrlClean,
@@ -606,6 +619,8 @@ function runAuditBuild(siteUrl, posts, previousSnapshot) {
     items,
     clusters: clusterResults,
     actions,
+    edges,
+    item_cluster: itemCluster,
   };
 }
 
@@ -731,6 +746,7 @@ function render() {
     renderHeadlineStats();
     renderClusters();
     renderTrend();
+    renderGraph();
     renderActions();
     renderWafArticles();
     renderPostsTable();
@@ -876,6 +892,228 @@ function renderTrend() {
   `;
 }
 
+// ---------- Link graph (force-directed, hand-rolled, no deps) ----------
+// Same compute-then-paint approach as renderTrend(): run a fixed number of
+// simulation ticks synchronously, then draw the settled positions once.
+// No animation loop. Handles a few hundred nodes comfortably.
+
+const CLUSTER_PALETTE = [
+  '#443fde', '#2a9d8f', '#e76f51', '#e9c46a', '#9b5de5',
+  '#00bbf9', '#f15bb5', '#588157', '#bc6c25', '#48cae4',
+];
+
+// Deterministic RNG so the same audit lays out identically each render
+// (Math.random would reshuffle the graph every time, which is jarring).
+function csMulberry32(seed) {
+  return function () {
+    seed |= 0; seed = (seed + 0x6D2B79F5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function simulateGraph(items, edges, opts = {}) {
+  const W = opts.width || 800;
+  const H = opts.height || 520;
+  const TICKS = opts.ticks || 300;
+  const rand = csMulberry32(items.length * 2654435761 + edges.length);
+  const cx = W / 2, cy = H / 2;
+
+  const nodes = items.map(it => ({
+    id: it.id,
+    inbound: it.inbound,
+    outbound: it.outbound,
+    degree: it.inbound + it.outbound,
+    orphan: it.inbound === 0,
+    x: cx + (rand() - 0.5) * W * (it.inbound === 0 ? 0.95 : 0.5),
+    y: cy + (rand() - 0.5) * H * (it.inbound === 0 ? 0.95 : 0.5),
+    vx: 0, vy: 0,
+  }));
+  const idx = new Map(nodes.map((n, i) => [n.id, i]));
+
+  const links = [];
+  for (const [s, t] of edges) {
+    const si = idx.get(s), ti = idx.get(t);
+    if (si === undefined || ti === undefined) continue;
+    links.push([si, ti]);
+  }
+
+  const REPULSION = 900, SPRING = 0.02, SPRING_LEN = 42, CENTER = 0.012, DAMP = 0.85;
+
+  for (let tick = 0; tick < TICKS; tick++) {
+    const cool = 1 - tick / TICKS;
+    for (let i = 0; i < nodes.length; i++) {
+      const a = nodes[i];
+      for (let j = i + 1; j < nodes.length; j++) {
+        const b = nodes[j];
+        let dx = a.x - b.x, dy = a.y - b.y, d2 = dx * dx + dy * dy;
+        if (d2 < 0.01) { d2 = 0.01; dx = rand() - 0.5; dy = rand() - 0.5; }
+        const force = (REPULSION / d2) * cool;
+        const d = Math.sqrt(d2);
+        const fx = (dx / d) * force, fy = (dy / d) * force;
+        a.vx += fx; a.vy += fy; b.vx -= fx; b.vy -= fy;
+      }
+    }
+    for (const [si, ti] of links) {
+      const a = nodes[si], b = nodes[ti];
+      const dx = b.x - a.x, dy = b.y - a.y;
+      const d = Math.sqrt(dx * dx + dy * dy) || 0.01;
+      const force = (d - SPRING_LEN) * SPRING;
+      const fx = (dx / d) * force, fy = (dy / d) * force;
+      a.vx += fx; a.vy += fy; b.vx -= fx; b.vy -= fy;
+    }
+    for (const n of nodes) {
+      if (n.orphan) {
+        // Weaker centre pull + a small outward shove, so orphans ring the edge
+        n.vx += (cx - n.x) * (CENTER * 0.35);
+        n.vy += (cy - n.y) * (CENTER * 0.35);
+        const ox = n.x - cx, oy = n.y - cy;
+        const od = Math.sqrt(ox * ox + oy * oy) || 0.01;
+        const push = 0.6 * cool;
+        n.vx += (ox / od) * push; n.vy += (oy / od) * push;
+      } else {
+        n.vx += (cx - n.x) * CENTER;
+        n.vy += (cy - n.y) * CENTER;
+      }
+      n.vx *= DAMP; n.vy *= DAMP;
+      n.x += n.vx; n.y += n.vy;
+      n.x = Math.max(16, Math.min(W - 16, n.x));
+      n.y = Math.max(16, Math.min(H - 16, n.y));
+    }
+  }
+  return { nodes, links, W, H };
+}
+
+function renderGraph() {
+  const el = document.getElementById('graphChart');
+  if (!el || !state.audit) return;
+  const items = state.audit.items || [];
+  const edges = state.audit.edges || [];
+
+  if (items.length < 2) {
+    el.innerHTML = '<div class="graph-empty">Not enough posts to draw a graph yet.</div>';
+    return;
+  }
+  if (!edges.length) {
+    el.innerHTML = '<div class="graph-empty">No internal links found to graph. Re-run the audit if this looks wrong.</div>';
+    return;
+  }
+
+  const W = 800, H = 520;
+  const { nodes } = simulateGraph(items, edges, { width: W, height: H, ticks: 300 });
+  const nodeById = new Map(nodes.map(n => [n.id, n]));
+
+  // Cluster colours
+  const clusterNames = (state.audit.clusters || []).map(c => c.name);
+  const colorMap = {};
+  clusterNames.forEach((name, i) => { colorMap[name] = CLUSTER_PALETTE[i % CLUSTER_PALETTE.length]; });
+  const itemCluster = state.audit.item_cluster || {};
+
+  // Node radius scales gently with degree so hubs read as bigger
+  const radius = n => Math.max(2.5, Math.min(9, 2.5 + Math.sqrt(n.degree) * 1.1));
+
+  // Edges first (under nodes), faint
+  const edgeSvg = edges.map(([s, t]) => {
+    const a = nodeById.get(s), b = nodeById.get(t);
+    if (!a || !b) return '';
+    return `<line x1="${a.x.toFixed(1)}" y1="${a.y.toFixed(1)}" x2="${b.x.toFixed(1)}" y2="${b.y.toFixed(1)}" stroke="#d8d8e8" stroke-width="0.6"/>`;
+  }).join('');
+
+  // Nodes
+  const nodeSvg = nodes.map(n => {
+    const cluster = itemCluster[n.id];
+    const fill = n.orphan ? '#c4c4d0' : (cluster ? colorMap[cluster] : '#8a8a9a');
+    const stroke = n.orphan ? '#a8a8b8' : 'rgba(0,0,0,0.15)';
+    return `<circle class="graph-node" data-id="${escapeHtml(String(n.id))}" cx="${n.x.toFixed(1)}" cy="${n.y.toFixed(1)}" r="${radius(n).toFixed(1)}" fill="${fill}" stroke="${stroke}" stroke-width="0.8"><title>${escapeHtml(itemTitle(n.id))} — ${n.inbound} in / ${n.outbound} out</title></circle>`;
+  }).join('');
+
+  // Legend: clusters present + orphan swatch
+  const presentClusters = clusterNames.filter(name =>
+    Object.values(itemCluster).includes(name));
+  const legend = presentClusters.map(name =>
+    `<span class="graph-legend-item"><span class="graph-legend-dot" style="background:${colorMap[name]}"></span>${escapeHtml(name)}</span>`
+  ).join('') +
+    `<span class="graph-legend-item"><span class="graph-legend-dot" style="background:#c4c4d0"></span>Orphan</span>`;
+
+  el.innerHTML = `
+    <svg viewBox="0 0 ${W} ${H}" class="graph-svg" preserveAspectRatio="xMidYMid meet">
+      <g class="graph-edges">${edgeSvg}</g>
+      <g class="graph-nodes">${nodeSvg}</g>
+    </svg>
+    <div class="graph-legend">${legend}</div>
+    <div class="graph-hint">Click any node to filter the table below to that post and everything it links to.</div>
+  `;
+
+  // Click a node -> filter the posts table to that node + its neighbours
+  el.querySelectorAll('.graph-node').forEach(circle => {
+    circle.addEventListener('click', () => {
+      focusNodeInTable(circle.dataset.id);
+    });
+  });
+}
+
+// Helper: post title by id (for tooltips)
+function itemTitle(id) {
+  const it = (state.audit?.items || []).find(i => String(i.id) === String(id));
+  return it ? it.title : '';
+}
+
+// Filter the posts table to a node and everything it connects to (in or out).
+function focusNodeInTable(id) {
+  const items = state.audit?.items || [];
+  const target = items.find(i => String(i.id) === String(id));
+  if (!target) return;
+
+  // Collect neighbour paths from the edge list
+  const neighbours = new Set([target.path]);
+  for (const [s, t] of (state.audit.edges || [])) {
+    if (String(s) === String(id)) {
+      const tn = items.find(i => String(i.id) === String(t));
+      if (tn) neighbours.add(tn.path);
+    }
+    if (String(t) === String(id)) {
+      const sn = items.find(i => String(i.id) === String(s));
+      if (sn) neighbours.add(sn.path);
+    }
+  }
+
+  // Drive the existing table via a dedicated focus set
+  state.graphFocus = neighbours;
+  state.filter = 'all';
+  document.querySelectorAll('.filter-btn').forEach(x => x.classList.remove('active'));
+  document.querySelector('.filter-btn[data-filter="all"]')?.classList.add('active');
+  // Clear text search so it doesn't fight the focus filter
+  state.search = '';
+  const searchInput = document.getElementById('search');
+  if (searchInput) searchInput.value = '';
+
+  renderPostsTable();
+  track('graph_node_focused');
+
+  // Scroll the table into view and show a clear-focus affordance
+  document.getElementById('postsSection')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  showGraphFocusBanner(target.title, neighbours.size);
+}
+
+function showGraphFocusBanner(title, count) {
+  let banner = document.getElementById('graphFocusBanner');
+  if (!banner) {
+    banner = document.createElement('div');
+    banner.id = 'graphFocusBanner';
+    banner.className = 'graph-focus-banner';
+    const postsSub = document.getElementById('postsSub');
+    postsSub?.parentElement?.appendChild(banner);
+  }
+  banner.innerHTML = `Showing <strong>${escapeHtml(title)}</strong> and its ${count - 1} connected page${count - 1 === 1 ? '' : 's'}. <button type="button" id="clearGraphFocus">Clear</button>`;
+  banner.classList.remove('hidden');
+  document.getElementById('clearGraphFocus')?.addEventListener('click', () => {
+    state.graphFocus = null;
+    banner.classList.add('hidden');
+    renderPostsTable();
+  });
+}
+
 function renderActions() {
   const el = document.getElementById('actionList');
   if (!state.audit.actions.length) {
@@ -971,7 +1209,10 @@ async function submitNewsletterSignup(email) {
 function renderPostsTable() {
   const tbody = document.getElementById('rows');
   const search = state.search.toLowerCase();
+  // Graph focus: if a node was clicked in the graph, restrict to its neighbour set
+  const focusSet = state.graphFocus;
   let rows = state.audit.items.filter(p => {
+    if (focusSet && !focusSet.has(p.path)) return false;
     if (state.filter === 'orphans' && p.inbound > 0) return false;
     if (state.filter === 'underlinked' && p.inbound >= 3) return false;
     if (state.filter === 'hubs' && p.inbound < 10) return false;
