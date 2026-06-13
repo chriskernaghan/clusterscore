@@ -1836,3 +1836,66 @@ html, body {
   .landing-features { padding: 56px 32px; }
   .ss-toprow-value, .ss-cluster-score { font-size: 26px; }
 }
+
+/* ---------- Link graph ---------- */
+.panel-graph { margin-top: 0; margin-bottom: 32px; }
+.graph-chart { position: relative; width: 100%; padding: 20px; }
+.graph-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  background: var(--paper-2);
+  border: var(--rule-soft);
+  border-radius: 2px;
+}
+.graph-node { cursor: pointer; transition: stroke-width 120ms ease; }
+.graph-node:hover { stroke: var(--accent) !important; stroke-width: 2.4 !important; }
+.graph-empty, .graph-hint {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-3);
+  text-align: center;
+  padding: 12px;
+}
+.graph-empty { padding: 48px 12px; }
+.graph-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: 14px;
+  justify-content: center;
+}
+.graph-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ink-3);
+}
+.graph-legend-dot {
+  width: 9px; height: 9px; border-radius: 50%; display: inline-block; flex-shrink: 0;
+}
+.graph-focus-banner {
+  margin-top: 12px;
+  padding: 10px 14px;
+  background: var(--accent-3);
+  border-radius: 2px;
+  font-size: 13px;
+  color: var(--ink);
+}
+.graph-focus-banner.hidden { display: none; }
+.graph-focus-banner button {
+  margin-left: 8px;
+  border: none;
+  background: none;
+  color: var(--accent);
+  font-family: var(--font-sans);
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
