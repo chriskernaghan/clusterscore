@@ -1115,7 +1115,8 @@ function renderGraph() {
     const cluster = itemCluster[n.id];
     const fill = n.orphan ? '#c4c4d0' : (cluster ? colorMap[cluster] : '#8a8a9a');
     const stroke = n.orphan ? '#a8a8b8' : 'rgba(0,0,0,0.15)';
-    return `<circle class="graph-node" data-id="${escapeHtml(String(n.id))}" cx="${n.x.toFixed(1)}" cy="${n.y.toFixed(1)}" r="${radius(n).toFixed(1)}" fill="${fill}" stroke="${stroke}" stroke-width="0.8"><title>${escapeHtml(itemTitle(n.id))} — ${n.inbound} in / ${n.outbound} out</title></circle>`;
+    const nodeCluster = itemCluster[n.id] || '';
+    return `<circle class="graph-node" data-id="${escapeHtml(String(n.id))}" data-title="${escapeHtml(itemTitle(n.id))}" data-in="${n.inbound}" data-out="${n.outbound}" data-orphan="${n.orphan ? '1' : '0'}" data-cluster="${escapeHtml(nodeCluster)}" cx="${n.x.toFixed(1)}" cy="${n.y.toFixed(1)}" r="${radius(n).toFixed(1)}" fill="${fill}" stroke="${stroke}" stroke-width="0.8"></circle>`;
   }).join('');
 
   // Legend: clusters present + orphan swatch
@@ -1132,13 +1133,49 @@ function renderGraph() {
       <g class="graph-nodes">${nodeSvg}</g>
     </svg>
     <div class="graph-legend">${legend}</div>
-    <div class="graph-hint">Click any node to filter the table below to that post and everything it links to.</div>
+    <div class="graph-hint">Each dot is a page. Lines are internal links. Dots on the outer edge are orphans — pages nothing links to. Hover a dot for detail, click it to filter the table below.</div>
+    <div class="graph-tooltip hidden" id="graphTooltip"></div>
   `;
 
   // Click a node -> filter the posts table to that node + its neighbours
+  const tooltip = document.getElementById('graphTooltip');
   el.querySelectorAll('.graph-node').forEach(circle => {
     circle.addEventListener('click', () => {
       focusNodeInTable(circle.dataset.id);
+    });
+    // Hover -> show a readable tooltip explaining the node
+    circle.addEventListener('mouseenter', () => {
+      if (!tooltip) return;
+      const d = circle.dataset;
+      const inN = parseInt(d.in, 10), outN = parseInt(d.out, 10);
+      const isOrphan = d.orphan === '1';
+      // Plain-English status line so first-time users understand the dot
+      let status;
+      if (isOrphan) status = 'Orphan — no pages link to this one';
+      else if (inN < 3) status = 'Under-linked — few pages link here';
+      else if (inN >= 10) status = 'Hub — lots of pages link here';
+      else status = 'Connected';
+      const clusterLine = d.cluster ? `<div class="graph-tooltip-cluster">${escapeHtml(d.cluster)} cluster</div>` : '';
+      tooltip.innerHTML = `
+        <div class="graph-tooltip-title">${escapeHtml(d.title || '(untitled)')}</div>
+        <div class="graph-tooltip-status">${status}</div>
+        <div class="graph-tooltip-counts">${inN} in · ${outN} out</div>
+        ${clusterLine}`;
+      tooltip.classList.remove('hidden');
+    });
+    circle.addEventListener('mousemove', (e) => {
+      if (!tooltip || tooltip.classList.contains('hidden')) return;
+      // Position relative to the graph container, offset from the cursor
+      const rect = el.getBoundingClientRect();
+      let x = e.clientX - rect.left + 14;
+      let y = e.clientY - rect.top + 14;
+      // Keep it inside the container horizontally
+      if (x + 200 > rect.width) x = e.clientX - rect.left - 200;
+      tooltip.style.left = x + 'px';
+      tooltip.style.top = y + 'px';
+    });
+    circle.addEventListener('mouseleave', () => {
+      tooltip?.classList.add('hidden');
     });
   });
 }
@@ -2013,6 +2050,12 @@ function clearAllData() {
   state.clusters = [...DEFAULT_CLUSTERS];
   state.snapshots = [];
   state.audit = null;
+  // Reset the landing-tracked flag so the user lands cleanly back on the
+  // first-visit experience rather than a half-configured state.
+  state._landingTracked = false;
+  // Close the drawer and send them home — render() will show the landing page
+  // now that audit is null and config is empty.
+  closeDrawer();
   populateDrawer();
   render();
   toast('All data cleared.', 'success');
