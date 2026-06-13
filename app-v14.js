@@ -1,6 +1,6 @@
 /* ========================================================================
    Clusterscore — client-side app logic
-   Internal link audits for any CMS, all in the browser.
+   Internal link audits for any CMS, all in the browser
    ======================================================================== */
 
 // Hardcoded proxy URL — users never see or configure this.
