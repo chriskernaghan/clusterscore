@@ -1,6 +1,6 @@
 /* ========================================================================
    Link Audit — editorial workshop aesthetic
-   Warm paper, deep ink, restrained color, deliberate typography 
+   Warm paper, deep ink, restrained color, deliberate typography
    ======================================================================== */
 
 :root {
@@ -2262,3 +2262,58 @@ html, body {
   0%, 33.32% { opacity: 1; }
   33.33%, 100% { opacity: 0; }
 }
+
+/* ---------- Cluster suggestion: chips + manual add ---------- */
+.cs-suggest-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+  min-height: 36px;
+}
+.cs-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px 6px 12px;
+  background: var(--paper-2);
+  border: 1px solid var(--ink);
+  border-radius: 2px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink);
+}
+.cs-chip-x {
+  border: none;
+  background: none;
+  color: var(--ink-3);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 2px;
+  border-radius: 2px;
+}
+.cs-chip-x:hover { color: var(--bad); }
+.cs-chip-empty {
+  font-size: 13px;
+  color: var(--ink-3);
+  font-style: italic;
+  line-height: 1.5;
+}
+.cs-suggest-add {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 24px;
+}
+.cs-suggest-input {
+  flex: 1;
+  padding: 10px 14px;
+  border: 1px solid var(--ink-4);
+  border-radius: 2px;
+  background: var(--paper);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  color: var(--ink);
+}
+.cs-suggest-input:focus { outline: none; border-color: var(--ink); }
+.cs-suggest-add .btn { flex-shrink: 0; }
