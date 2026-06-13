@@ -1524,6 +1524,95 @@ function closeFailModal() {
   document.getElementById('failBackdrop').classList.add('hidden');
 }
 
+// ---------- Cluster suggestion (first-run, from slugs) ----------
+// On a first-time audit, we don't want to score the user's site against the
+// built-in default clusters (Cursor, Lindy, etc) — those are ours, not theirs.
+// Instead, after fetching their pages we analyse the slugs, propose clusters
+// from the most common tokens, and let them pick before the report builds.
+
+const CLUSTER_STOPWORDS = new Set([
+  'the','a','an','and','or','but','for','to','of','in','on','at','by','with',
+  'how','what','why','when','where','who','which','is','are','was','were','be',
+  'blog','post','posts','article','articles','guide','guides','page','pages',
+  'best','top','review','reviews','vs','your','you','our','my','this','that',
+  'new','using','use','used','get','getting','make','making','it','from',
+  'part','intro','introduction','tips','tutorial','about','into','out',
+]);
+
+function suggestClustersFromPosts(posts, opts = {}) {
+  const minPosts = opts.minPosts || 3;
+  const cap = opts.cap || 8;
+  const freq = new Map();
+  for (const p of posts) {
+    const slug = (p.slug || '').toLowerCase();
+    const tokens = slug.split(/[^a-z0-9]+/).filter(Boolean);
+    const seen = new Set();
+    for (const t of tokens) {
+      if (t.length < 3) continue;
+      if (CLUSTER_STOPWORDS.has(t)) continue;
+      if (/^\d+$/.test(t)) continue;
+      if (seen.has(t)) continue;
+      seen.add(t);
+      freq.set(t, (freq.get(t) || 0) + 1);
+    }
+  }
+  // Nicer display casing for a few known acronyms; otherwise capitalise first letter
+  const prettify = (token) => {
+    const special = { saas: 'SaaS', seo: 'SEO', api: 'API', ai: 'AI', ui: 'UI', ux: 'UX' };
+    if (special[token]) return special[token];
+    return token.charAt(0).toUpperCase() + token.slice(1);
+  };
+  return [...freq.entries()]
+    .filter(([, n]) => n >= minPosts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, cap)
+    .map(([token, count]) => ({ name: prettify(token), keywords: [token], post_count: count }));
+}
+
+// Shows the suggestion checklist and resolves with the chosen clusters
+// (array of { name, keywords }). Resolves with [] if the user skips.
+// Returns a Promise so the audit run can await the user's choice.
+function promptClusterSuggestions(suggestions) {
+  return new Promise(resolve => {
+    const modal = document.getElementById('clusterSuggestModal');
+    const backdrop = document.getElementById('clusterSuggestBackdrop');
+    const list = document.getElementById('clusterSuggestList');
+    const confirmBtn = document.getElementById('clusterSuggestConfirm');
+    const skipBtn = document.getElementById('clusterSuggestSkip');
+
+    // Build checklist — all checked by default
+    list.innerHTML = suggestions.map((s, i) => `
+      <label class="cs-suggest-item">
+        <input type="checkbox" data-idx="${i}" checked>
+        <span class="cs-suggest-name">${escapeHtml(s.name)}</span>
+        <span class="cs-suggest-count">${s.post_count} posts</span>
+      </label>
+    `).join('');
+
+    modal.classList.remove('hidden');
+    backdrop.classList.remove('hidden');
+
+    const cleanup = () => {
+      modal.classList.add('hidden');
+      backdrop.classList.add('hidden');
+      confirmBtn.removeEventListener('click', onConfirm);
+      skipBtn.removeEventListener('click', onSkip);
+    };
+    const onConfirm = () => {
+      const chosen = [];
+      list.querySelectorAll('input[type="checkbox"]:checked').forEach(cb => {
+        const s = suggestions[parseInt(cb.dataset.idx, 10)];
+        if (s) chosen.push({ name: s.name, keywords: s.keywords });
+      });
+      cleanup();
+      resolve(chosen);
+    };
+    const onSkip = () => { cleanup(); resolve([]); };
+    confirmBtn.addEventListener('click', onConfirm);
+    skipBtn.addEventListener('click', onSkip);
+  });
+}
+
 // Progress overlay: a single visible place for run progress, independent of
 // which button started the audit (the masthead button is hidden during the
 // landing-page hero flow, so its label updates were invisible — this fixes that).
@@ -1621,6 +1710,28 @@ async function actualRunAudit() {
 
     if (!posts.length) {
       throw new Error('No posts/pages were fetched. Check your settings.');
+    }
+
+    // First-run cluster suggestion: if this browser has never completed an audit
+    // AND the user is still on the untouched default clusters, suggest clusters
+    // from their own slugs instead of scoring against our defaults. Returning or
+    // customised users skip this entirely.
+    let firstRun = false;
+    try { firstRun = localStorage.getItem(STORAGE_KEYS.hasAudited) !== '1'; } catch (e) {}
+    const onDefaultClusters =
+      JSON.stringify(state.clusters.map(c => c.name)) ===
+      JSON.stringify(DEFAULT_CLUSTERS.map(c => c.name));
+    if (firstRun && onDefaultClusters) {
+      const suggestions = suggestClustersFromPosts(posts);
+      if (suggestions.length) {
+        hideProgress(); // let the modal take the foreground
+        const chosen = await promptClusterSuggestions(suggestions);
+        // Whatever they pick becomes their clusters (empty = no clusters, which
+        // the empty-state panel will then invite them to define later).
+        state.clusters = chosen;
+        saveClusters();
+        showProgress('Building report...');
+      }
     }
 
     setProgress('Building report...');
