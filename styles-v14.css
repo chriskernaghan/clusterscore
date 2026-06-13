@@ -1973,3 +1973,292 @@ html, body {
   color: var(--ink-3);
   line-height: 1.5;
 }
+
+/* ---------- Cluster suggestion modal ---------- */
+.cs-suggest-lede {
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--ink-2);
+  margin: 0 0 20px;
+}
+.cs-suggest-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 24px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+.cs-suggest-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border: 1px solid var(--ink-4);
+  border-radius: 2px;
+  cursor: pointer;
+  transition: all 120ms ease;
+}
+.cs-suggest-item:hover { border-color: var(--ink-3); }
+.cs-suggest-item:has(input:checked) {
+  border-color: var(--ink);
+  background: var(--paper-2);
+}
+.cs-suggest-item input { margin: 0; accent-color: var(--accent); flex-shrink: 0; }
+.cs-suggest-name {
+  font-weight: 500;
+  font-size: 14px;
+  color: var(--ink);
+  flex: 1;
+}
+.cs-suggest-count {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-3);
+}
+.progress-miner {
+  position: relative;
+  width: calc(var(--miner-px) * 16);
+  height: calc(var(--miner-px) * 16);
+  margin: 0 auto 18px;
+  image-rendering: pixelated;
+  --miner-px: 6px;
+}
+.progress-miner span {
+  position: absolute; top: 0; left: 0;
+  width: var(--miner-px); height: var(--miner-px);
+}
+.progress-miner .mf1 { box-shadow: calc(var(--px)*4) calc(var(--px)*1) #443fde,
+    calc(var(--px)*5) calc(var(--px)*1) #443fde,
+    calc(var(--px)*6) calc(var(--px)*1) #443fde,
+    calc(var(--px)*7) calc(var(--px)*1) #443fde,
+    calc(var(--px)*3) calc(var(--px)*2) #443fde,
+    calc(var(--px)*4) calc(var(--px)*2) #443fde,
+    calc(var(--px)*5) calc(var(--px)*2) #443fde,
+    calc(var(--px)*6) calc(var(--px)*2) #443fde,
+    calc(var(--px)*7) calc(var(--px)*2) #443fde,
+    calc(var(--px)*8) calc(var(--px)*2) #443fde,
+    calc(var(--px)*11) calc(var(--px)*2) #9aa0aa,
+    calc(var(--px)*12) calc(var(--px)*2) #c4c9d0,
+    calc(var(--px)*3) calc(var(--px)*3) #443fde,
+    calc(var(--px)*4) calc(var(--px)*3) #2f2bb0,
+    calc(var(--px)*5) calc(var(--px)*3) #2f2bb0,
+    calc(var(--px)*6) calc(var(--px)*3) #2f2bb0,
+    calc(var(--px)*7) calc(var(--px)*3) #2f2bb0,
+    calc(var(--px)*8) calc(var(--px)*3) #443fde,
+    calc(var(--px)*10) calc(var(--px)*3) #9aa0aa,
+    calc(var(--px)*11) calc(var(--px)*3) #9aa0aa,
+    calc(var(--px)*12) calc(var(--px)*3) #c4c9d0,
+    calc(var(--px)*4) calc(var(--px)*4) #e8c9a0,
+    calc(var(--px)*5) calc(var(--px)*4) #e8c9a0,
+    calc(var(--px)*6) calc(var(--px)*4) #e8c9a0,
+    calc(var(--px)*7) calc(var(--px)*4) #e8c9a0,
+    calc(var(--px)*10) calc(var(--px)*4) #8a5a26,
+    calc(var(--px)*11) calc(var(--px)*4) #9aa0aa,
+    calc(var(--px)*4) calc(var(--px)*5) #e8c9a0,
+    calc(var(--px)*5) calc(var(--px)*5) #e8c9a0,
+    calc(var(--px)*6) calc(var(--px)*5) #e8c9a0,
+    calc(var(--px)*7) calc(var(--px)*5) #e8c9a0,
+    calc(var(--px)*9) calc(var(--px)*5) #8a5a26,
+    calc(var(--px)*3) calc(var(--px)*6) #3d3933,
+    calc(var(--px)*4) calc(var(--px)*6) #3d3933,
+    calc(var(--px)*5) calc(var(--px)*6) #3d3933,
+    calc(var(--px)*6) calc(var(--px)*6) #3d3933,
+    calc(var(--px)*7) calc(var(--px)*6) #3d3933,
+    calc(var(--px)*9) calc(var(--px)*6) #8a5a26,
+    calc(var(--px)*2) calc(var(--px)*7) #3d3933,
+    calc(var(--px)*3) calc(var(--px)*7) #3d3933,
+    calc(var(--px)*4) calc(var(--px)*7) #3d3933,
+    calc(var(--px)*5) calc(var(--px)*7) #3d3933,
+    calc(var(--px)*6) calc(var(--px)*7) #3d3933,
+    calc(var(--px)*7) calc(var(--px)*7) #3d3933,
+    calc(var(--px)*8) calc(var(--px)*7) #3d3933,
+    calc(var(--px)*2) calc(var(--px)*8) #3d3933,
+    calc(var(--px)*4) calc(var(--px)*8) #3d3933,
+    calc(var(--px)*5) calc(var(--px)*8) #3d3933,
+    calc(var(--px)*6) calc(var(--px)*8) #3d3933,
+    calc(var(--px)*8) calc(var(--px)*8) #3d3933,
+    calc(var(--px)*2) calc(var(--px)*9) #3d3933,
+    calc(var(--px)*4) calc(var(--px)*9) #3d3933,
+    calc(var(--px)*5) calc(var(--px)*9) #3d3933,
+    calc(var(--px)*6) calc(var(--px)*9) #3d3933,
+    calc(var(--px)*4) calc(var(--px)*10) #5a3a1a,
+    calc(var(--px)*5) calc(var(--px)*10) #5a3a1a,
+    calc(var(--px)*6) calc(var(--px)*10) #5a3a1a,
+    calc(var(--px)*4) calc(var(--px)*11) #5a3a1a,
+    calc(var(--px)*6) calc(var(--px)*11) #5a3a1a,
+    calc(var(--px)*3) calc(var(--px)*12) #5a3a1a,
+    calc(var(--px)*4) calc(var(--px)*12) #5a3a1a,
+    calc(var(--px)*6) calc(var(--px)*12) #5a3a1a,
+    calc(var(--px)*7) calc(var(--px)*12) #5a3a1a,
+    calc(var(--px)*3) calc(var(--px)*13) #1a1816,
+    calc(var(--px)*4) calc(var(--px)*13) #1a1816,
+    calc(var(--px)*6) calc(var(--px)*13) #1a1816,
+    calc(var(--px)*7) calc(var(--px)*13) #1a1816; animation: minerFrames 0.66s steps(1) infinite; animation-delay: 0s; }
+.progress-miner .mf2 { box-shadow: calc(var(--px)*4) calc(var(--px)*1) #443fde,
+    calc(var(--px)*5) calc(var(--px)*1) #443fde,
+    calc(var(--px)*6) calc(var(--px)*1) #443fde,
+    calc(var(--px)*7) calc(var(--px)*1) #443fde,
+    calc(var(--px)*3) calc(var(--px)*2) #443fde,
+    calc(var(--px)*4) calc(var(--px)*2) #443fde,
+    calc(var(--px)*5) calc(var(--px)*2) #443fde,
+    calc(var(--px)*6) calc(var(--px)*2) #443fde,
+    calc(var(--px)*7) calc(var(--px)*2) #443fde,
+    calc(var(--px)*8) calc(var(--px)*2) #443fde,
+    calc(var(--px)*3) calc(var(--px)*3) #443fde,
+    calc(var(--px)*4) calc(var(--px)*3) #2f2bb0,
+    calc(var(--px)*5) calc(var(--px)*3) #2f2bb0,
+    calc(var(--px)*6) calc(var(--px)*3) #2f2bb0,
+    calc(var(--px)*7) calc(var(--px)*3) #2f2bb0,
+    calc(var(--px)*8) calc(var(--px)*3) #443fde,
+    calc(var(--px)*4) calc(var(--px)*4) #e8c9a0,
+    calc(var(--px)*5) calc(var(--px)*4) #e8c9a0,
+    calc(var(--px)*6) calc(var(--px)*4) #e8c9a0,
+    calc(var(--px)*7) calc(var(--px)*4) #e8c9a0,
+    calc(var(--px)*4) calc(var(--px)*5) #e8c9a0,
+    calc(var(--px)*5) calc(var(--px)*5) #e8c9a0,
+    calc(var(--px)*6) calc(var(--px)*5) #e8c9a0,
+    calc(var(--px)*7) calc(var(--px)*5) #e8c9a0,
+    calc(var(--px)*12) calc(var(--px)*5) #9aa0aa,
+    calc(var(--px)*3) calc(var(--px)*6) #3d3933,
+    calc(var(--px)*4) calc(var(--px)*6) #3d3933,
+    calc(var(--px)*5) calc(var(--px)*6) #3d3933,
+    calc(var(--px)*6) calc(var(--px)*6) #3d3933,
+    calc(var(--px)*7) calc(var(--px)*6) #3d3933,
+    calc(var(--px)*11) calc(var(--px)*6) #9aa0aa,
+    calc(var(--px)*12) calc(var(--px)*6) #9aa0aa,
+    calc(var(--px)*13) calc(var(--px)*6) #c4c9d0,
+    calc(var(--px)*2) calc(var(--px)*7) #3d3933,
+    calc(var(--px)*3) calc(var(--px)*7) #3d3933,
+    calc(var(--px)*4) calc(var(--px)*7) #3d3933,
+    calc(var(--px)*5) calc(var(--px)*7) #3d3933,
+    calc(var(--px)*6) calc(var(--px)*7) #3d3933,
+    calc(var(--px)*7) calc(var(--px)*7) #3d3933,
+    calc(var(--px)*8) calc(var(--px)*7) #3d3933,
+    calc(var(--px)*10) calc(var(--px)*7) #8a5a26,
+    calc(var(--px)*11) calc(var(--px)*7) #9aa0aa,
+    calc(var(--px)*2) calc(var(--px)*8) #3d3933,
+    calc(var(--px)*4) calc(var(--px)*8) #3d3933,
+    calc(var(--px)*5) calc(var(--px)*8) #3d3933,
+    calc(var(--px)*6) calc(var(--px)*8) #3d3933,
+    calc(var(--px)*8) calc(var(--px)*8) #3d3933,
+    calc(var(--px)*9) calc(var(--px)*8) #8a5a26,
+    calc(var(--px)*2) calc(var(--px)*9) #3d3933,
+    calc(var(--px)*4) calc(var(--px)*9) #3d3933,
+    calc(var(--px)*5) calc(var(--px)*9) #3d3933,
+    calc(var(--px)*6) calc(var(--px)*9) #3d3933,
+    calc(var(--px)*7) calc(var(--px)*9) #8a5a26,
+    calc(var(--px)*4) calc(var(--px)*10) #5a3a1a,
+    calc(var(--px)*5) calc(var(--px)*10) #5a3a1a,
+    calc(var(--px)*6) calc(var(--px)*10) #5a3a1a,
+    calc(var(--px)*4) calc(var(--px)*11) #5a3a1a,
+    calc(var(--px)*6) calc(var(--px)*11) #5a3a1a,
+    calc(var(--px)*3) calc(var(--px)*12) #5a3a1a,
+    calc(var(--px)*4) calc(var(--px)*12) #5a3a1a,
+    calc(var(--px)*6) calc(var(--px)*12) #5a3a1a,
+    calc(var(--px)*7) calc(var(--px)*12) #5a3a1a,
+    calc(var(--px)*3) calc(var(--px)*13) #1a1816,
+    calc(var(--px)*4) calc(var(--px)*13) #1a1816,
+    calc(var(--px)*6) calc(var(--px)*13) #1a1816,
+    calc(var(--px)*7) calc(var(--px)*13) #1a1816; animation: minerFrames 0.66s steps(1) infinite; animation-delay: 0.22s; }
+.progress-miner .mf3 { box-shadow: calc(var(--px)*13) calc(var(--px)*0) #f5f1ea,
+    calc(var(--px)*14) calc(var(--px)*0) #f5f1ea,
+    calc(var(--px)*15) calc(var(--px)*0) #f5f1ea,
+    calc(var(--px)*4) calc(var(--px)*1) #443fde,
+    calc(var(--px)*5) calc(var(--px)*1) #443fde,
+    calc(var(--px)*6) calc(var(--px)*1) #443fde,
+    calc(var(--px)*7) calc(var(--px)*1) #443fde,
+    calc(var(--px)*12) calc(var(--px)*1) #f5f1ea,
+    calc(var(--px)*13) calc(var(--px)*1) #f5f1ea,
+    calc(var(--px)*14) calc(var(--px)*1) #f5f1ea,
+    calc(var(--px)*15) calc(var(--px)*1) #f5f1ea,
+    calc(var(--px)*3) calc(var(--px)*2) #443fde,
+    calc(var(--px)*4) calc(var(--px)*2) #443fde,
+    calc(var(--px)*5) calc(var(--px)*2) #443fde,
+    calc(var(--px)*6) calc(var(--px)*2) #443fde,
+    calc(var(--px)*7) calc(var(--px)*2) #443fde,
+    calc(var(--px)*8) calc(var(--px)*2) #443fde,
+    calc(var(--px)*12) calc(var(--px)*2) #f5f1ea,
+    calc(var(--px)*14) calc(var(--px)*2) #a39c8f,
+    calc(var(--px)*15) calc(var(--px)*2) #f5f1ea,
+    calc(var(--px)*3) calc(var(--px)*3) #443fde,
+    calc(var(--px)*4) calc(var(--px)*3) #2f2bb0,
+    calc(var(--px)*5) calc(var(--px)*3) #2f2bb0,
+    calc(var(--px)*6) calc(var(--px)*3) #2f2bb0,
+    calc(var(--px)*7) calc(var(--px)*3) #2f2bb0,
+    calc(var(--px)*8) calc(var(--px)*3) #443fde,
+    calc(var(--px)*12) calc(var(--px)*3) #f5f1ea,
+    calc(var(--px)*13) calc(var(--px)*3) #a39c8f,
+    calc(var(--px)*14) calc(var(--px)*3) #c4c9d0,
+    calc(var(--px)*15) calc(var(--px)*3) #f5f1ea,
+    calc(var(--px)*4) calc(var(--px)*4) #e8c9a0,
+    calc(var(--px)*5) calc(var(--px)*4) #e8c9a0,
+    calc(var(--px)*6) calc(var(--px)*4) #e8c9a0,
+    calc(var(--px)*7) calc(var(--px)*4) #e8c9a0,
+    calc(var(--px)*11) calc(var(--px)*4) #f5f1ea,
+    calc(var(--px)*12) calc(var(--px)*4) #d4b483,
+    calc(var(--px)*14) calc(var(--px)*4) #a39c8f,
+    calc(var(--px)*15) calc(var(--px)*4) #f5f1ea,
+    calc(var(--px)*4) calc(var(--px)*5) #e8c9a0,
+    calc(var(--px)*5) calc(var(--px)*5) #e8c9a0,
+    calc(var(--px)*6) calc(var(--px)*5) #e8c9a0,
+    calc(var(--px)*7) calc(var(--px)*5) #e8c9a0,
+    calc(var(--px)*10) calc(var(--px)*5) #9aa0aa,
+    calc(var(--px)*11) calc(var(--px)*5) #9aa0aa,
+    calc(var(--px)*12) calc(var(--px)*5) #d4b483,
+    calc(var(--px)*13) calc(var(--px)*5) #f5f1ea,
+    calc(var(--px)*14) calc(var(--px)*5) #f5f1ea,
+    calc(var(--px)*15) calc(var(--px)*5) #f5f1ea,
+    calc(var(--px)*3) calc(var(--px)*6) #3d3933,
+    calc(var(--px)*4) calc(var(--px)*6) #3d3933,
+    calc(var(--px)*5) calc(var(--px)*6) #3d3933,
+    calc(var(--px)*6) calc(var(--px)*6) #3d3933,
+    calc(var(--px)*7) calc(var(--px)*6) #3d3933,
+    calc(var(--px)*9) calc(var(--px)*6) #9aa0aa,
+    calc(var(--px)*10) calc(var(--px)*6) #9aa0aa,
+    calc(var(--px)*11) calc(var(--px)*6) #c4c9d0,
+    calc(var(--px)*13) calc(var(--px)*6) #f5f1ea,
+    calc(var(--px)*15) calc(var(--px)*6) #f5f1ea,
+    calc(var(--px)*2) calc(var(--px)*7) #3d3933,
+    calc(var(--px)*3) calc(var(--px)*7) #3d3933,
+    calc(var(--px)*4) calc(var(--px)*7) #3d3933,
+    calc(var(--px)*5) calc(var(--px)*7) #3d3933,
+    calc(var(--px)*6) calc(var(--px)*7) #3d3933,
+    calc(var(--px)*7) calc(var(--px)*7) #3d3933,
+    calc(var(--px)*8) calc(var(--px)*7) #3d3933,
+    calc(var(--px)*9) calc(var(--px)*7) #8a5a26,
+    calc(var(--px)*10) calc(var(--px)*7) #c4c9d0,
+    calc(var(--px)*13) calc(var(--px)*7) #f5f1ea,
+    calc(var(--px)*14) calc(var(--px)*7) #f5f1ea,
+    calc(var(--px)*15) calc(var(--px)*7) #f5f1ea,
+    calc(var(--px)*2) calc(var(--px)*8) #3d3933,
+    calc(var(--px)*4) calc(var(--px)*8) #3d3933,
+    calc(var(--px)*5) calc(var(--px)*8) #3d3933,
+    calc(var(--px)*6) calc(var(--px)*8) #3d3933,
+    calc(var(--px)*8) calc(var(--px)*8) #3d3933,
+    calc(var(--px)*9) calc(var(--px)*8) #8a5a26,
+    calc(var(--px)*13) calc(var(--px)*8) #f5f1ea,
+    calc(var(--px)*15) calc(var(--px)*8) #f5f1ea,
+    calc(var(--px)*2) calc(var(--px)*9) #3d3933,
+    calc(var(--px)*4) calc(var(--px)*9) #3d3933,
+    calc(var(--px)*5) calc(var(--px)*9) #3d3933,
+    calc(var(--px)*6) calc(var(--px)*9) #3d3933,
+    calc(var(--px)*4) calc(var(--px)*10) #5a3a1a,
+    calc(var(--px)*5) calc(var(--px)*10) #5a3a1a,
+    calc(var(--px)*6) calc(var(--px)*10) #5a3a1a,
+    calc(var(--px)*4) calc(var(--px)*11) #5a3a1a,
+    calc(var(--px)*6) calc(var(--px)*11) #5a3a1a,
+    calc(var(--px)*3) calc(var(--px)*12) #5a3a1a,
+    calc(var(--px)*4) calc(var(--px)*12) #5a3a1a,
+    calc(var(--px)*6) calc(var(--px)*12) #5a3a1a,
+    calc(var(--px)*7) calc(var(--px)*12) #5a3a1a,
+    calc(var(--px)*3) calc(var(--px)*13) #1a1816,
+    calc(var(--px)*4) calc(var(--px)*13) #1a1816,
+    calc(var(--px)*6) calc(var(--px)*13) #1a1816,
+    calc(var(--px)*7) calc(var(--px)*13) #1a1816; animation: minerFrames 0.66s steps(1) infinite; animation-delay: 0.44s; }
+@keyframes minerFrames {
+  0%, 33.32% { opacity: 1; }
+  33.33%, 100% { opacity: 0; }
+}
