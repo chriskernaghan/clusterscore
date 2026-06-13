@@ -488,6 +488,20 @@
   </div>
 </div>
 
+<!-- =================================================================
+     AUDIT PROGRESS OVERLAY
+     Always-visible run feedback. The masthead button is hidden during the
+     landing-page hero flow, so progress needs its own visible home.
+     ================================================================= -->
+<div class="progress-overlay hidden" id="progressOverlay">
+  <div class="progress-card">
+    <div class="progress-mark">C/S</div>
+    <div class="progress-text" id="progressText">Starting...</div>
+    <div class="progress-track"><div class="progress-bar indeterminate" id="progressBar"></div></div>
+    <div class="progress-sub">Fetching and scoring your pages. Larger sites take a little longer.</div>
+  </div>
+</div>
+
 <div class="toast-container" id="toastContainer"></div>
 
 <script src="app-v14.js"></script>
