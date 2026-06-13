@@ -489,16 +489,35 @@
 </div>
 
 <!-- =================================================================
+     CLUSTER SUGGESTION MODAL (first-run)
+     After fetching pages, propose clusters from the user's own slugs.
+     ================================================================= -->
+<div class="modal-backdrop hidden" id="clusterSuggestBackdrop"></div>
+<div class="confirm-modal hidden" id="clusterSuggestModal" role="dialog" aria-labelledby="clusterSuggestTitle">
+  <div class="confirm-modal-inner">
+    <h2 id="clusterSuggestTitle">We found your topics</h2>
+    <p class="cs-suggest-lede">Based on your page URLs, here are the content clusters we can score. Pick the ones that match how you think about your site — you can edit these any time.</p>
+    <div class="cs-suggest-list" id="clusterSuggestList"></div>
+    <div class="confirm-actions">
+      <button class="btn btn-ghost" id="clusterSuggestSkip">Skip for now</button>
+      <button class="btn btn-primary" id="clusterSuggestConfirm">Use these clusters</button>
+    </div>
+  </div>
+</div>
+
+<!-- =================================================================
      AUDIT PROGRESS OVERLAY
      Always-visible run feedback. The masthead button is hidden during the
      landing-page hero flow, so progress needs its own visible home.
      ================================================================= -->
 <div class="progress-overlay hidden" id="progressOverlay">
   <div class="progress-card">
-    <div class="progress-mark">C/S</div>
+    <div class="progress-miner" aria-hidden="true">
+      <span class="mf1"></span><span class="mf2"></span><span class="mf3"></span>
+    </div>
     <div class="progress-text" id="progressText">Starting...</div>
     <div class="progress-track"><div class="progress-bar indeterminate" id="progressBar"></div></div>
-    <div class="progress-sub">Fetching and scoring your pages. Larger sites take a little longer.</div>
+    <div class="progress-sub">Digging through your internal links. Larger sites take a little longer.</div>
   </div>
 </div>
 
