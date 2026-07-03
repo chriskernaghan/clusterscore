@@ -8,6 +8,15 @@
 <meta property="og:title" content="Clusterscore · Internal link audits for any CMS">
 <meta property="og:description" content="See your orphan pages, cluster density, and internal link graph in 30 seconds. Free.">
 <meta property="og:type" content="website">
+<meta property="og:url" content="https://clusterscore.com/">
+<meta property="og:image" content="https://clusterscore.com/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Clusterscore — internal link audit tool showing a content cluster graph">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Clusterscore · Internal link audits for any CMS">
+<meta name="twitter:description" content="See your orphan pages, cluster density, and internal link graph in 30 seconds. Free.">
+<meta name="twitter:image" content="https://clusterscore.com/og-image.png">
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="alternate icon" type="image/png" href="favicon-32.png" sizes="32x32">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -16,10 +25,6 @@
 <link rel="stylesheet" href="styles-v14.css">
 </head>
 <body>
-
-<!-- =================================================================
-     LANDING PAGE  (shown only on first visit, before config)
-     ================================================================= -->
 <section class="landing" id="landingPage">
   <nav class="landing-nav">
     <div class="landing-nav-inner">
@@ -164,10 +169,6 @@
     </div>
   </footer>
 </section>
-
-<!-- =================================================================
-     APP MASTHEAD  (hidden during landing)
-     ================================================================= -->
 <header class="masthead hidden" id="masthead">
   <div class="masthead-inner">
     <div class="brand">
@@ -239,11 +240,6 @@
       </div>
     </div>
   </section>
-
-  <!-- =================================================================
-       WAF INTEGRATION: newsletter signup + article recommendations.
-       Only visible when an audit has been completed (hidden by default).
-       ================================================================= -->
   <section class="waf-promo hidden" id="wafPromo">
     <div class="container">
       <div class="waf-newsletter">
@@ -314,8 +310,6 @@
     </div>
   </section>
 </main>
-
-<!-- App-level footer, shown alongside the masthead in post-audit view -->
 <footer class="app-footer hidden" id="appFooter">
   <div class="app-footer-inner">
     <div class="app-footer-brand">
@@ -327,10 +321,6 @@
     </div>
   </div>
 </footer>
-
-<!-- =================================================================
-     SETTINGS DRAWER
-     ================================================================= -->
 <div class="drawer-backdrop hidden" id="drawerBackdrop"></div>
 <aside class="drawer hidden" id="settingsDrawer" aria-label="Settings">
   <div class="drawer-header">
@@ -448,10 +438,6 @@
     </div>
   </div>
 </aside>
-
-<!-- =================================================================
-     SITEMAP DISCOVERY CONFIRMATION MODAL
-     ================================================================= -->
 <div class="modal-backdrop hidden" id="confirmBackdrop"></div>
 <div class="confirm-modal hidden" id="confirmModal" role="dialog" aria-labelledby="confirmTitle">
   <div class="confirm-modal-inner">
@@ -472,11 +458,6 @@
     </div>
   </div>
 </div>
-
-<!-- =================================================================
-     SITEMAP DISCOVERY FAILURE MODAL
-     Shown when /discover returns 404 / no sitemap found
-     ================================================================= -->
 <div class="modal-backdrop hidden" id="failBackdrop"></div>
 <div class="confirm-modal hidden" id="failModal" role="dialog" aria-labelledby="failTitle">
   <div class="confirm-modal-inner">
@@ -499,11 +480,6 @@
     </div>
   </div>
 </div>
-
-<!-- =================================================================
-     CLUSTER SUGGESTION MODAL (first-run)
-     After fetching pages, propose clusters from the user's own slugs.
-     ================================================================= -->
 <div class="modal-backdrop hidden" id="clusterSuggestBackdrop"></div>
 <div class="confirm-modal hidden" id="clusterSuggestModal" role="dialog" aria-labelledby="clusterSuggestTitle">
   <div class="confirm-modal-inner">
@@ -521,9 +497,6 @@
   </div>
 </div>
 
-<!-- =================================================================
-     PROGRESS HISTORY MODAL ("since you started")
-     ================================================================= -->
 <div class="modal-backdrop hidden" id="historyBackdrop"></div>
 <div class="confirm-modal hidden" id="historyModal" role="dialog" aria-labelledby="historyTitle">
   <div class="confirm-modal-inner">
@@ -532,12 +505,6 @@
     <div id="historyBody"></div>
   </div>
 </div>
-
-<!-- =================================================================
-     AUDIT PROGRESS OVERLAY
-     Always-visible run feedback. The masthead button is hidden during the
-     landing-page hero flow, so progress needs its own visible home.
-     ================================================================= -->
 <div class="progress-overlay hidden" id="progressOverlay">
   <div class="progress-card">
     <div class="progress-miner" aria-hidden="true">
