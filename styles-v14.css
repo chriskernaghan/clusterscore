@@ -1802,7 +1802,7 @@ html, body {
   margin: 0 auto;
   padding: 0 32px;
   display: flex;
-  align-items: start;
+  align-items: center;
   gap: 24px;
   font-size: 13px;
   color: var(--ink-3);
