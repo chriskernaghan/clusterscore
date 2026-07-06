@@ -1392,12 +1392,12 @@ html, body {
   background: var(--paper);
 }
 .app-footer-inner {
+  justify-content:center;
   max-width: var(--container);
   margin: 0 auto;
   padding: 0 32px;
   display: flex;
   align-items: center;
-  justify-content:center;
   gap: 24px;
   flex-wrap: wrap;
 }
