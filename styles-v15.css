@@ -1392,7 +1392,6 @@ html, body {
   background: var(--paper);
 }
 .app-footer-inner {
-  justify-content:center;
   max-width: var(--container);
   margin: 0 auto;
   padding: 0 32px;
@@ -1400,6 +1399,7 @@ html, body {
   align-items: center;
   gap: 24px;
   flex-wrap: wrap;
+  justify-content:center;
 }
 .app-footer-brand {
   display: flex;
