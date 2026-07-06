@@ -1397,6 +1397,7 @@ html, body {
   padding: 0 32px;
   display: flex;
   align-items: center;
+  justify-content:center;
   gap: 24px;
   flex-wrap: wrap;
 }
