@@ -1808,6 +1808,7 @@ html, body {
   font-size: 13px;
   color: var(--ink-3);
   flex-wrap: wrap;
+  justify-content: center;
 }
 .landing-footer a {
   color: var(--accent);
