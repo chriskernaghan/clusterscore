@@ -1803,8 +1803,7 @@ html, body {
   padding: 0 32px;
   display: flex;
   align-items: start;
-  gap: 12px;
-  justify-content: space-between;
+  gap: 24px;
   font-size: 13px;
   color: var(--ink-3);
   flex-wrap: wrap;
