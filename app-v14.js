@@ -299,25 +299,37 @@ async function fetchSitemapUrls(sitemapUrl, proxyUrl, onProgress) {
   return [...allUrls];
 }
 
-async function fetchAllFromSitemap(config, onProgress) {
+// Discover and filter the sitemap URL list WITHOUT fetching page HTML. Slugs are
+// recoverable from URLs alone, so this is enough to drive cluster suggestions
+// before the (potentially long) page fetch begins.
+async function resolveSitemapUrls(config, onProgress) {
   if (!config.sitemapUrl) throw new Error('Sitemap URL is required.');
-
   const allUrls = await fetchSitemapUrls(config.sitemapUrl, PROXY_URL, onProgress);
   const filtered = allUrls.filter(u => shouldIncludeUrl(u, config));
   onProgress?.(`Sitemap returned ${allUrls.length} URLs (${filtered.length} after filtering).`);
+  return filtered;
+}
 
+// Fetch page HTML for a pre-resolved URL list. Streaming hooks:
+//   opts.onPage(post)       — fired as each page resolves (streaming rows in)
+//   opts.onThreshold(total) — fired once when `thresholdCount` pages have resolved
+//                             (the modal→dashboard handoff point)
+async function fetchPagesForUrls(filtered, opts = {}) {
+  const { onProgress, onPage, onThreshold, thresholdCount } = opts;
   const CONCURRENCY = 6;
   const posts = [];
   let fetched = 0;
   let failed = 0;
+  let thresholdFired = false;
 
   async function fetchOne(url) {
+    let post = null;
     try {
       const resp = await proxiedFetch(PROXY_URL, url);
       if (!resp.ok) { failed++; return null; }
       const html = await resp.text();
       const meta = extractMetaFromHtml(html);
-      return {
+      post = {
         id: url,
         title: meta.title || url,
         slug: extractSlug(url),
@@ -325,11 +337,17 @@ async function fetchAllFromSitemap(config, onProgress) {
         html,
         _resource: 'sitemap',
       };
+      return post;
     } catch (e) {
       failed++;
       return null;
     } finally {
       fetched++;
+      if (post) { try { onPage?.(post); } catch (e) {} }
+      if (!thresholdFired && thresholdCount && fetched >= thresholdCount) {
+        thresholdFired = true;
+        try { onThreshold?.(filtered.length); } catch (e) {}
+      }
       if (fetched % 5 === 0 || fetched === filtered.length) {
         onProgress?.(`Fetching pages... ${fetched} of ${filtered.length}${failed ? ` (${failed} failed)` : ''}`);
       }
@@ -351,6 +369,12 @@ async function fetchAllFromSitemap(config, onProgress) {
 
   onProgress?.(`Fetched ${posts.length} pages.`);
   return posts;
+}
+
+// Back-compat wrapper: original single-call API (discover + fetch, no streaming).
+async function fetchAllFromSitemap(config, onProgress) {
+  const filtered = await resolveSitemapUrls(config, onProgress);
+  return fetchPagesForUrls(filtered, { onProgress });
 }
 
 function extractMetaFromHtml(html) {
@@ -1412,6 +1436,176 @@ function toggleDetail(id) {
   renderPostsTable();
 }
 
+// ---------- Progressive (streaming) dashboard ----------
+// For large sites we dismiss the loading modal partway through the fetch and
+// reveal the dashboard shell, streaming per-page rows into the posts table as
+// they arrive. Graph-level aggregates (orphans, inbound counts, cluster density)
+// depend on the WHOLE link graph and cannot be computed until every page is in,
+// so they render as skeletons until the final build swaps them for real numbers.
+
+const STREAM = {
+  active: false,
+  total: 0,
+  seenPaths: null,     // Set of normalized paths already streamed (dedupe)
+  pending: [],         // rows awaiting the next flush
+  flushScheduled: false,
+};
+
+// Streaming only pays off on big sites. Small sites finish so fast that the
+// modal→handoff transition is just flicker, so below the floor we keep today's
+// behaviour (modal to completion, then render once).
+const STREAM_SMALL_SITE_FLOOR = 800;
+function streamThresholdFor(total) {
+  return Math.max(Math.ceil(total * 0.25), 500);
+}
+function shouldStream(total) {
+  return total >= STREAM_SMALL_SITE_FLOOR;
+}
+
+// Reveal the dashboard shell with skeletons in place of graph-level aggregates,
+// and an empty streaming table ready to receive rows. Called at the handoff.
+function beginStreamingDashboard(total) {
+  STREAM.active = true;
+  STREAM.total = total;
+  STREAM.seenPaths = new Set();
+  STREAM.pending = [];
+
+  hideProgress(); // dismiss the blocking modal — dashboard takes over
+
+  // Show the dashboard + posts sections and masthead, hide landing/empty.
+  document.getElementById('landingPage')?.classList.add('hidden');
+  document.getElementById('emptyState')?.classList.add('hidden');
+  document.getElementById('dashboard')?.classList.remove('hidden');
+  document.getElementById('postsSection')?.classList.remove('hidden');
+  document.getElementById('masthead')?.classList.remove('hidden');
+  // Keep the promo/footer hidden until the real render, to avoid layout churn.
+  document.getElementById('wafPromo')?.classList.add('hidden');
+  document.getElementById('appFooter')?.classList.add('hidden');
+
+  document.getElementById('dashboard')?.classList.add('is-streaming');
+
+  renderSkeletonAggregates();
+
+  // Prime the posts table for streaming.
+  const tbody = document.getElementById('rows');
+  if (tbody) tbody.innerHTML = '';
+  document.getElementById('emptyTable')?.classList.add('hidden');
+  const sub = document.getElementById('postsSub');
+  if (sub) sub.textContent = `0 of ~${total.toLocaleString()} (loading…)`;
+
+  // A persistent, non-blocking progress pill so the user knows work continues.
+  showStreamPill(0, total);
+}
+
+// Headline stats + cluster/graph/action panels as skeletons. These are the
+// numbers that require the full graph, so they stay "calculating" until the end.
+function renderSkeletonAggregates() {
+  const labels = ['Internal links', 'Orphans', 'Under-linked', 'Avg inbound'];
+  const head = document.getElementById('headlineStats');
+  if (head) {
+    head.innerHTML = labels.map(l => `
+      <div class="headline-stat is-skeleton" aria-busy="true">
+        <div class="stat-label">${l}${infoIcon(l)}</div>
+        <div class="stat-value"><span class="skeleton-bar skeleton-bar-lg"></span></div>
+        <div class="stat-calc">calculating…</div>
+      </div>
+    `).join('');
+  }
+  const cg = document.getElementById('clusterGrid');
+  if (cg) {
+    cg.innerHTML = Array.from({ length: Math.max(1, state.clusters.length) || 3 }).map(() => `
+      <div class="cluster-card is-skeleton" aria-busy="true">
+        <span class="skeleton-bar skeleton-bar-md"></span>
+        <span class="skeleton-bar skeleton-bar-sm"></span>
+      </div>
+    `).join('');
+  }
+  const graph = document.getElementById('graphChart');
+  if (graph) graph.innerHTML = `<div class="graph-skeleton" aria-busy="true">Mapping your link graph once every page is in…</div>`;
+  const actions = document.getElementById('actionList');
+  if (actions) actions.innerHTML = `<li class="action-skeleton" aria-busy="true">Prioritising fixes once the full graph is ready…</li>`;
+}
+
+// Stream one fetched page into the provisional table. inbound/outbound are not
+// yet known (they need the full graph), so those cells show a skeleton dash.
+function streamRow(post) {
+  if (!STREAM.active) return;
+  let path;
+  try {
+    path = new URL(post.url).pathname || '/';
+  } catch { path = '/'; }
+  if (!path.endsWith('/') && !/\.[a-z0-9]+$/i.test(path.split('/').pop() || '')) path += '/';
+  const key = path.toLowerCase();
+  if (STREAM.seenPaths.has(key)) return; // dedupe (mirrors runAuditBuild)
+  STREAM.seenPaths.add(key);
+
+  const { words } = extractLinksAndWords(post.html || '');
+  STREAM.pending.push({ title: post.title || '(untitled)', path, words });
+  scheduleStreamFlush();
+}
+
+// Batch DOM writes to one per animation frame so a fast fetch doesn't thrash
+// layout with thousands of individual insertions.
+function scheduleStreamFlush() {
+  if (STREAM.flushScheduled) return;
+  STREAM.flushScheduled = true;
+  requestAnimationFrame(() => {
+    STREAM.flushScheduled = false;
+    flushStreamRows();
+  });
+}
+
+function flushStreamRows() {
+  const tbody = document.getElementById('rows');
+  if (!tbody || !STREAM.pending.length) return;
+  const batch = STREAM.pending;
+  STREAM.pending = [];
+  const frag = document.createDocumentFragment();
+  for (const r of batch) {
+    const tr = document.createElement('tr');
+    tr.className = 'row row-streaming';
+    tr.innerHTML = `
+      <td class="cell-title">${escapeHtml(r.title)}</td>
+      <td class="cell-url">${escapeHtml(r.path)}</td>
+      <td class="num"><span class="skeleton-bar skeleton-bar-xs"></span></td>
+      <td class="num"><span class="skeleton-bar skeleton-bar-xs"></span></td>
+      <td class="num">${r.words.toLocaleString()}</td>
+    `;
+    frag.appendChild(tr);
+  }
+  tbody.appendChild(frag);
+  const shown = STREAM.seenPaths.size;
+  const sub = document.getElementById('postsSub');
+  if (sub) sub.textContent = `${shown.toLocaleString()} of ~${STREAM.total.toLocaleString()} (loading…)`;
+  updateStreamPill(shown, STREAM.total);
+}
+
+// Non-blocking progress pill (bottom corner) shown while streaming continues.
+function showStreamPill(done, total) {
+  let pill = document.getElementById('streamPill');
+  if (!pill) {
+    pill = document.createElement('div');
+    pill.id = 'streamPill';
+    pill.className = 'stream-pill';
+    pill.innerHTML = `<span class="stream-pill-dot"></span><span class="stream-pill-text"></span>`;
+    document.body.appendChild(pill);
+  }
+  pill.classList.remove('hidden');
+  updateStreamPill(done, total);
+}
+function updateStreamPill(done, total) {
+  const pill = document.getElementById('streamPill');
+  if (!pill) return;
+  const txt = pill.querySelector('.stream-pill-text');
+  if (txt) txt.textContent = `Fetching pages… ${done.toLocaleString()} of ${total.toLocaleString()}`;
+}
+function endStreaming() {
+  STREAM.active = false;
+  STREAM.pending = [];
+  document.getElementById('dashboard')?.classList.remove('is-streaming');
+  document.getElementById('streamPill')?.classList.add('hidden');
+}
+
 // ---------- Settings drawer ----------
 
 function openDrawer() {
@@ -1676,13 +1870,30 @@ const CLUSTER_STOPWORDS = new Set([
   'great','good','better','more','most','every','everything','anything',
 ]);
 
+// Accepts either fetched posts ({ slug }) or bare URL strings — a slug is
+// recoverable from a URL alone, so this can run on the sitemap list before any
+// HTML is fetched.
 function suggestClustersFromPosts(posts, opts = {}) {
   const minPosts = opts.minPosts || 3;
   const cap = opts.cap || 8;
-  const freq = new Map();
+
+  // Normalise input to a list of slugs.
+  const slugs = [];
   for (const p of posts) {
-    const slug = (p.slug || '').toLowerCase();
+    const slug = typeof p === 'string' ? extractSlug(p) : (p.slug || '');
+    if (slug) slugs.push(slug.toLowerCase());
+  }
+  const totalDocs = slugs.length;
+  if (!totalDocs) return [];
+
+  // Document frequency (how many slugs contain the token) plus a co-occurrence
+  // COUNT map: for each token, how many times it shares a slug with each other
+  // token. The shape of this distribution is the topical signal — see scoreToken.
+  const df = new Map();               // token -> doc count
+  const coCounts = new Map();         // token -> Map(otherToken -> co-occur count)
+  for (const slug of slugs) {
     const tokens = slug.split(/[^a-z0-9]+/).filter(Boolean);
+    const kept = [];
     const seen = new Set();
     for (const t of tokens) {
       if (t.length < 3) continue;
@@ -1690,44 +1901,82 @@ function suggestClustersFromPosts(posts, opts = {}) {
       if (/^\d+$/.test(t)) continue;
       if (seen.has(t)) continue;
       seen.add(t);
-      freq.set(t, (freq.get(t) || 0) + 1);
+      kept.push(t);
+      df.set(t, (df.get(t) || 0) + 1);
+    }
+    for (const t of kept) {
+      let m = coCounts.get(t);
+      if (!m) { m = new Map(); coCounts.set(t, m); }
+      for (const other of kept) if (other !== t) m.set(other, (m.get(other) || 0) + 1);
     }
   }
 
-  // Collapse singular/plural: if both "founder" and "founders" exist, merge the
-  // plural into the singular and sum their post counts, so we don't show both as
-  // separate clusters. Handles simple "+s" and "+es" plurals (the common cases).
-  for (const token of [...freq.keys()]) {
+  // Collapse singular/plural: merge the plural into the singular, summing counts
+  // and unioning co-occurrence sets. Handles simple "+s"/"+es" plurals.
+  for (const token of [...df.keys()]) {
     let singular = null;
-    if (token.endsWith('es') && freq.has(token.slice(0, -2))) singular = token.slice(0, -2);
-    else if (token.endsWith('s') && !token.endsWith('ss') && freq.has(token.slice(0, -1))) singular = token.slice(0, -1);
+    if (token.endsWith('es') && df.has(token.slice(0, -2))) singular = token.slice(0, -2);
+    else if (token.endsWith('s') && !token.endsWith('ss') && df.has(token.slice(0, -1))) singular = token.slice(0, -1);
     if (singular && singular !== token) {
-      freq.set(singular, freq.get(singular) + freq.get(token));
-      freq.delete(token);
+      df.set(singular, df.get(singular) + df.get(token));
+      const a = coCounts.get(singular) || new Map();
+      for (const [x, n] of (coCounts.get(token) || [])) a.set(x, (a.get(x) || 0) + n);
+      coCounts.set(singular, a);
+      df.delete(token);
+      coCounts.delete(token);
     }
   }
 
-  // Nicer display casing for a few known acronyms; otherwise capitalise first letter
+  // Document-frequency CEILING: a token appearing in more than this share of all
+  // slugs is structural boilerplate, not a topic. This is the "inverse document
+  // frequency" intuition — the words in the MOST pages are the least
+  // distinctive. On a news/finance site this is exactly what kills "daily",
+  // "data", "explained", "statistics".
+  const ceilingShare = opts.ceilingShare || 0.4;
+  const ceilingCount = Math.max(minPosts + 1, Math.ceil(totalDocs * ceilingShare));
+
   const prettify = (token) => {
     const special = { saas: 'SaaS', seo: 'SEO', api: 'API', ai: 'AI', ui: 'UI', ux: 'UX' };
     if (special[token]) return special[token];
     return token.charAt(0).toUpperCase() + token.slice(1);
   };
-  // Adaptive threshold: editorial sites (unique-topic slugs) rarely repeat a
-  // token 3+ times, so strict frequency finds almost nothing. If the strict
-  // pass is thin, relax to 2 so the user still gets seeds to edit. The manual
-  // field is the real safety net, but starting from something beats blank.
-  const ranked = (threshold) => [...freq.entries()]
-    .filter(([, n]) => n >= threshold)
-    .sort((a, b) => b[1] - a[1])
+
+  // Distinctiveness score. The key signal is CONCENTRATION of co-occurrence, not
+  // breadth. A real topic word repeatedly pairs with the same few partners
+  // ("mortgage" keeps appearing with "housing"/"rates"), so a large fraction of
+  // its co-occurrences land on its top partners. Boilerplate ("explained",
+  // "daily") pairs with a different word almost every time, so its co-occurrence
+  // mass is spread thin — no partner accounts for much. We measure the share of a
+  // token's total co-occurrences captured by its top few partners: high share =
+  // topical, low share = filler.
+  const scoreToken = (token, count) => {
+    const partners = coCounts.get(token);
+    const freqComponent = Math.log2(count + 1);
+    if (!partners || partners.size === 0) {
+      // No co-occurrences at all (single-token slugs). Fall back to mild
+      // frequency weighting; can't assess concentration.
+      return freqComponent * 0.5;
+    }
+    const counts = [...partners.values()].sort((a, b) => b - a);
+    const total = counts.reduce((s, n) => s + n, 0);
+    const topK = counts.slice(0, 3).reduce((s, n) => s + n, 0);
+    const concentration = topK / total; // 0..1, higher = more topical
+    // Concentration dominates; frequency is a gentle tiebreaker so that between
+    // two equally-topical words the better-populated cluster ranks higher.
+    return concentration * (1 + 0.25 * freqComponent);
+  };
+
+  const ranked = (threshold) => [...df.entries()]
+    .filter(([, n]) => n >= threshold && n <= ceilingCount)
+    .map(([token, count]) => [token, count, scoreToken(token, count)])
+    .sort((a, b) => b[2] - a[2])
     .slice(0, cap)
     .map(([token, count]) => ({ name: prettify(token), keywords: [token], post_count: count }));
 
+  // Adaptive threshold: editorial sites rarely repeat a token 3+ times, so relax
+  // to 2 if the strict pass is thin. The manual field remains the real safety net.
   let out = ranked(minPosts);
-  if (out.length < 3) {
-    // Relax the threshold, but keep anything already found at the top
-    out = ranked(2);
-  }
+  if (out.length < 3) out = ranked(2);
   return out;
 }
 
@@ -1890,6 +2139,15 @@ async function actualRunAudit() {
   try {
     let posts, derivedSiteUrl, sitemapUrlForConfig;
 
+    // First-run flag: suggest clusters from the user's own slugs only if this
+    // browser has never completed an audit AND they're still on default clusters.
+    let firstRun = false;
+    try { firstRun = localStorage.getItem(STORAGE_KEYS.hasAudited) !== '1'; } catch (e) {}
+    const onDefaultClusters =
+      JSON.stringify(state.clusters.map(c => c.name)) ===
+      JSON.stringify(DEFAULT_CLUSTERS.map(c => c.name));
+    const wantSuggestions = firstRun && onDefaultClusters;
+
     if (cfg.source === 'ghost') {
       posts = await fetchAllPosts(
         cfg.ghostUrl,
@@ -1897,20 +2155,60 @@ async function actualRunAudit() {
         msg => setProgress(msg)
       );
       derivedSiteUrl = cfg.ghostUrl;
-    } else {
-      // Use cached resolved URL or fall back to sitemap URL
-      sitemapUrlForConfig = cfg.resolvedSitemapUrl || cfg.sitemapUrl;
 
+      // Ghost has no pre-fetch URL list, so suggestions still run post-fetch here.
+      if (wantSuggestions) {
+        const suggestions = suggestClustersFromPosts(posts);
+        if (suggestions.length) {
+          hideProgress();
+          const chosen = await promptClusterSuggestions(suggestions);
+          state.clusters = chosen;
+          saveClusters();
+          showProgress('Building report...');
+        }
+      }
+    } else {
+      // Sitemap-based sources: resolve the URL list FIRST (cheap), so we can both
+      // (a) suggest clusters from slugs before the long page fetch, and
+      // (b) know the total up front to drive the streaming handoff.
+      sitemapUrlForConfig = cfg.resolvedSitemapUrl || cfg.sitemapUrl;
       const sitemapConfig = {
         ...cfg,
         sitemapUrl: sitemapUrlForConfig,
         excludePatterns: cfg.excludePatterns || (PLATFORM_DEFAULTS[cfg.source]?.excludePatterns ?? ''),
       };
 
-      posts = await fetchAllFromSitemap(
-        sitemapConfig,
-        msg => setProgress(msg)
-      );
+      setProgress('Reading your sitemap...');
+      const urls = await resolveSitemapUrls(sitemapConfig, msg => setProgress(msg));
+      if (!urls.length) throw new Error('No URLs found in the sitemap. Check your settings.');
+
+      // Corrected, pre-fetch cluster suggestion (runs on slugs from the URL list).
+      if (wantSuggestions) {
+        const suggestions = suggestClustersFromPosts(urls);
+        if (suggestions.length) {
+          hideProgress();
+          const chosen = await promptClusterSuggestions(suggestions);
+          state.clusters = chosen;
+          saveClusters();
+        }
+      }
+
+      // Fetch pages. On large sites, hand off to the streaming dashboard at 25%
+      // (floored at 500 pages); small sites keep the modal to completion.
+      const total = urls.length;
+      const streaming = shouldStream(total);
+      const thresholdCount = streaming ? streamThresholdFor(total) : 0;
+
+      if (streaming) showProgress('Fetching pages...');
+      else showProgress('Fetching your site...');
+
+      posts = await fetchPagesForUrls(urls, {
+        onProgress: msg => setProgress(msg),
+        thresholdCount,
+        onThreshold: streaming ? (t => beginStreamingDashboard(t)) : null,
+        onPage: streaming ? (p => streamRow(p)) : null,
+      });
+
       derivedSiteUrl = (() => {
         if (posts.length) {
           try { const u = new URL(posts[0].url); return `${u.protocol}//${u.host}`; } catch {}
@@ -1924,28 +2222,8 @@ async function actualRunAudit() {
       throw new Error('No posts/pages were fetched. Check your settings.');
     }
 
-    // First-run cluster suggestion: if this browser has never completed an audit
-    // AND the user is still on the untouched default clusters, suggest clusters
-    // from their own slugs instead of scoring against our defaults. Returning or
-    // customised users skip this entirely.
-    let firstRun = false;
-    try { firstRun = localStorage.getItem(STORAGE_KEYS.hasAudited) !== '1'; } catch (e) {}
-    const onDefaultClusters =
-      JSON.stringify(state.clusters.map(c => c.name)) ===
-      JSON.stringify(DEFAULT_CLUSTERS.map(c => c.name));
-    if (firstRun && onDefaultClusters) {
-      const suggestions = suggestClustersFromPosts(posts);
-      if (suggestions.length) {
-        hideProgress(); // let the modal take the foreground
-        const chosen = await promptClusterSuggestions(suggestions);
-        // Whatever they pick becomes their clusters (empty = no clusters, which
-        // the empty-state panel will then invite them to define later).
-        state.clusters = chosen;
-        saveClusters();
-        showProgress('Building report...');
-      }
-    }
-
+    // Build the full report once — graph-level aggregates are correct only now.
+    if (STREAM.active) updateStreamPill(posts.length, STREAM.total);
     setProgress('Building report...');
     const previous = state.snapshots[0] || null;
     const previousSnapshot = previous ? { posts: previous.posts_summary || [] } : null;
@@ -1962,7 +2240,8 @@ async function actualRunAudit() {
     state.snapshots = state.snapshots.slice(0, MAX_SNAPSHOTS);
     saveSnapshots();
 
-    render();
+    endStreaming();       // tear down streaming state before the final render
+    render();             // swaps skeletons for real aggregates + real rows
     toast(`Audit complete. ${audit.stats.total_links} internal links across ${audit.stats.post_count} posts.`, 'success');
     track('audit_completed');
     // Repeat-audit signal: if the browser had completed an audit before this one,
@@ -1979,9 +2258,17 @@ async function actualRunAudit() {
     document.getElementById('landingPage')?.classList.add('hidden');
   } catch (e) {
     console.error(e);
+    endStreaming();
+    // If we'd already revealed the streaming dashboard, drop back to a clean
+    // state rather than leaving skeletons stranded on screen.
+    if (!state.audit) {
+      document.getElementById('dashboard')?.classList.add('hidden');
+      document.getElementById('postsSection')?.classList.add('hidden');
+    }
     toast('Audit failed: ' + e.message, 'error');
   } finally {
     hideProgress();
+    endStreaming();
     btn.classList.remove('loading');
     btn.disabled = false;
     btn.querySelector('.btn-label').textContent = 'Run audit';
