@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://clusterscore.com/sitemap.xml
