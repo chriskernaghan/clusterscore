@@ -2350,8 +2350,28 @@ function clearAllData() {
 
 // ---------- Init ----------
 
+// Clusterscore is a single-page app: the only real route is "/". The host's
+// catch-all serves index.html for every path, so without this an unknown URL
+// like /random-fake-url would silently render the landing page (looking like a
+// real 200 page and creating duplicate content). Here we detect non-root paths
+// and show an explicit "not found" state instead. NOTE: this fixes the visible
+// CONTENT only — the HTTP status is still 200 unless the host is configured to
+// return 404 for unknown paths (see the Cloudflare Pages notes).
+function isKnownRoute() {
+  const p = window.location.pathname;
+  // Root, or root with index.html, are the legitimate app entry points.
+  if (p === '/' || p === '' || p === '/index.html') return true;
+  return false;
+}
+
 function init() {
   loadFromStorage();
+
+  // Unknown route → render 404 state and stop wiring the app.
+  if (!isKnownRoute()) {
+    renderNotFound();
+    return;
+  }
 
   // Wire up events
   document.getElementById('runAuditBtn').addEventListener('click', runAudit);
@@ -2572,6 +2592,31 @@ function setupInfoIcons() {
     // Tap outside any open tooltip closes them all
     document.querySelectorAll('.info-icon.is-open').forEach(el => el.classList.remove('is-open'));
   });
+}
+
+// Renders an explicit 404 state for unknown routes. Hides every app section and
+// shows a simple not-found panel with a link back to the real app root.
+function renderNotFound() {
+  const hide = id => document.getElementById(id)?.classList.add('hidden');
+  ['landingPage','emptyState','dashboard','postsSection','wafPromo','masthead','appFooter'].forEach(hide);
+
+  let nf = document.getElementById('notFound');
+  if (!nf) {
+    nf = document.createElement('section');
+    nf.id = 'notFound';
+    nf.className = 'not-found';
+    nf.innerHTML = `
+      <div class="not-found-inner">
+        <div class="not-found-code">404</div>
+        <h1 class="not-found-title">Page not found</h1>
+        <p class="not-found-lede">That page doesn't exist on Clusterscore. Head back to run an internal link audit.</p>
+        <a class="btn btn-primary btn-large" href="/">Go to Clusterscore →</a>
+      </div>`;
+    document.body.appendChild(nf);
+  }
+  nf.classList.remove('hidden');
+  // Reflect the not-found state in the document title for clarity/analytics.
+  try { document.title = 'Page not found · Clusterscore'; } catch (e) {}
 }
 
 function isConfigReady() {
