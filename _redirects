@@ -1,0 +1,17 @@
+# Cloudflare Pages redirects & routing
+#
+# Clusterscore is a single-page app whose ONLY real route is "/". The bug the
+# audit found ("every path returns the homepage with a 200") is caused by an
+# over-broad SPA catch-all like:  /*  /index.html  200
+# That rewrite makes /privacy, /blog, /random-fake-url all serve index.html at
+# 200, creating infinite duplicate content. We deliberately DO NOT use a
+# catch-all rewrite. With no rewrite, Cloudflare Pages serves:
+#   - /                       → index.html (200)
+#   - /robots.txt             → the real static file (200)
+#   - /sitemap.xml            → the real static file (200)
+#   - any unknown path        → 404.html with a real 404 status
+#
+# www → apex redirect (fixes the Cloudflare 522 on the www host by routing it to
+# the working apex origin). 301 = permanent.
+https://www.clusterscore.com/*  https://clusterscore.com/:splat  301!
+http://www.clusterscore.com/*   https://clusterscore.com/:splat  301!
