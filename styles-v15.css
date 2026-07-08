@@ -2543,3 +2543,117 @@ html, body {
   color: var(--accent-2);
   margin-top: 4px;
 }
+
+/* ============================================================
+   Progressive (streaming) dashboard — skeletons + progress pill
+   Shown on large sites while pages stream in after the 25% handoff.
+   ============================================================ */
+
+/* Shimmer placeholder used for values not yet known (inbound/outbound counts,
+   headline stats) until the full link graph is built. */
+.skeleton-bar {
+  display: inline-block;
+  height: 0.9em;
+  border-radius: 3px;
+  background: linear-gradient(
+    90deg,
+    var(--paper-2) 0%,
+    var(--paper-3) 50%,
+    var(--paper-2) 100%
+  );
+  background-size: 200% 100%;
+  animation: cs-shimmer 1.4s ease-in-out infinite;
+  vertical-align: middle;
+}
+.skeleton-bar-xs { width: 20px; height: 0.75em; }
+.skeleton-bar-sm { width: 60px; }
+.skeleton-bar-md { width: 90px; }
+.skeleton-bar-lg { width: 72px; height: 1.5em; }
+
+@keyframes cs-shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-bar { animation: none; }
+  .stream-pill-dot { animation: none; }
+}
+
+/* Headline stat in skeleton state: keep the label, swap the number for a bar. */
+.headline-stat.is-skeleton .stat-calc {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-4);
+  margin-top: 4px;
+}
+
+/* Cluster cards / graph / actions skeletons */
+.cluster-card.is-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 60px;
+  justify-content: center;
+}
+.graph-skeleton,
+.action-skeleton {
+  color: var(--ink-4);
+  font-size: 13px;
+  padding: 24px 4px;
+  text-align: center;
+}
+.graph-skeleton {
+  min-height: 180px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px dashed var(--paper-3);
+  border-radius: 6px;
+}
+.action-skeleton { list-style: none; }
+
+/* Streaming rows: fade in as they're appended. */
+.row-streaming { animation: cs-rowin 0.25s ease-out; }
+@keyframes cs-rowin {
+  from { opacity: 0; transform: translateY(2px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* While streaming, dim the aggregate panels slightly so attention goes to the
+   live-filling table (the honest, real-time part). */
+.dashboard.is-streaming .panel-graph,
+.dashboard.is-streaming .panel-actions,
+.dashboard.is-streaming .panel-clusters {
+  opacity: 0.85;
+}
+
+/* Non-blocking progress pill, bottom-right, persists through streaming. */
+.stream-pill {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  background: var(--ink);
+  color: var(--paper);
+  border-radius: 999px;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.18);
+}
+.stream-pill.hidden { display: none; }
+.stream-pill-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent-2);
+  animation: cs-pulse 1.2s ease-in-out infinite;
+}
+@keyframes cs-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%      { opacity: 0.4; transform: scale(0.7); }
+}
